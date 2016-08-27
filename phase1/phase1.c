@@ -29,6 +29,7 @@ int debugflag = 1;
 
 // the process table
 procStruct ProcTable[MAXPROC];
+int nextProcSlot = 0;
 
 // Process lists
 static procPtr ReadyList;
@@ -56,6 +57,7 @@ void startup()
     // initialize the process table
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing process table, ProcTable[]\n");
+    memset(ProcTable, 0, sizeof(procStruct) * MAXPROC);
 
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
@@ -141,8 +143,31 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
 
     // Return if stack size is too small
+    if (stacksize < USLOSS_MIN_STACK) {
+        return -2;
+    }
 
     // find an empty slot in the process table
+    procSlot = nextProcSlot;
+    while (ProcTable[nextProcSlot].status != 0) { // Status 0 = Quit
+        nextProcSlot++;
+        if (nextProcSlot == procSlot) {
+            if (DEBUG && debugflag) {
+                USLOSS_Console("fork1(): Process %s - no empty slot.\n", 
+                               name);
+            }
+            return -1;
+        }
+        if (nextProcSlot > 49) {
+            nextProcSlot = 0;
+        }
+    }
+    if (DEBUG && debugflag) {
+        USLOSS_Console("fork1(): Process %s PID equals %d.\n", 
+                       name, nextProcSlot);
+    }
+    procSlot = nextProcSlot;
+    nextProcSlot++;
 
     // fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
