@@ -1,9 +1,11 @@
 /* Patrick's DEBUG printing constant... */
-#define DEBUG 0
+#define DEBUG 1
 
 typedef struct procStruct procStruct;
 
 typedef struct procStruct * procPtr;
+
+//int psrInit(struct psrBits * psr_bits, unsigned int psrValue);
 
 struct procStruct {
    procPtr         nextProcPtr;
@@ -33,6 +35,17 @@ union psrValues {
    struct psrBits bits;
    unsigned int integerPart;
 };
+
+// TODO: Untested bits
+int psrInit(struct psrBits * psr_bits, unsigned int psrValue) {
+
+    psr_bits->curMode = psrValue & 1;
+    psr_bits->curIntEnable = psrValue & 2;
+    psr_bits->prevMode = psrValue & 4;
+    psr_bits->prevIntEnable = psrValue & 8;
+
+    return 0;
+}
 
 /* Some useful constants.  Add more as needed... */
 #define NO_CURRENT_PROCESS NULL

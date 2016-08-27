@@ -122,11 +122,23 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
     int procSlot = -1;
+    struct psrBits psr;  //TODO: verify var name
 
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     // test if in kernel mode; halt if in user mode
+    psrInit(&psr, USLOSS_PsrGet());
+    if (psr.curMode == 1) {
+        if (DEBUG && debugflag) {
+            USLOSS_Console("fork1(): User %s is in kernal mode.\n", name);
+        }
+    } else {
+        if (DEBUG && debugflag) {
+            USLOSS_Console("fork1(): User %s is in user mode.\n", name);
+        }
+        USLOSS_Halt(1);
+    }
 
     // Return if stack size is too small
 
