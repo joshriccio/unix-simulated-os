@@ -174,7 +174,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
         USLOSS_Halt(1);
     }
-    //TODO Add all remaining variables to process
+  
     strcpy(ProcTable[procSlot].name, name);
     ProcTable[procSlot].startFunc = startFunc;
     if ( arg == NULL )
@@ -185,6 +185,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     else
         strcpy(ProcTable[procSlot].startArg, arg);
+    
+    //TODO Add all remaining variables to process
+    ProcTable[procSlot].pid = procSlot;  //TODO is the pid the procSlot?
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].stack = malloc(stacksize);
 
@@ -201,7 +204,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // More stuff to do here...
 
-    return 0;  // -1 is not correct! Here to prevent warning.
+    return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
