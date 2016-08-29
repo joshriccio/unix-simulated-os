@@ -185,6 +185,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     else
         strcpy(ProcTable[procSlot].startArg, arg);
+    ProcTable[procSlot].stackSize = stacksize;
+    ProcTable[procSlot].stack = malloc(stacksize);
 
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
@@ -199,7 +201,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // More stuff to do here...
 
-    return -1;  // -1 is not correct! Here to prevent warning.
+    return 0;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
