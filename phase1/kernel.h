@@ -54,3 +54,7 @@ int psrInit(struct psrBits * psr_bits, unsigned int psrValue) {
 #define SENTINELPID 1
 #define SENTINELPRIORITY (MINPRIORITY + 1)
 
+//TODO Add more status contants
+#define READY 1
+#define BLOCKED 2
+#define QUIT 3

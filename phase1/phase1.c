@@ -176,7 +176,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
   
     strcpy(ProcTable[procSlot].name, name);
-    ProcTable[procSlot].startFunc = startFunc;
+    ProcTable[procSlot].startFunc = startFunc; 
     if ( arg == NULL )
         ProcTable[procSlot].startArg[0] = '\0';
     else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -190,7 +190,12 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     ProcTable[procSlot].pid = procSlot;  //TODO is the pid the procSlot?
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].stack = malloc(stacksize);
-
+    ProcTable[procSlot].priority = priority;
+    ProcTable[procSlot].status = READY;
+    ProcTable[procSlot].childProcPtr = NULL;
+    ProcTable[procSlot].nextSiblingPtr = NULL;
+    ProcTable[procSlot].nextProcPtr = NULL;
+    
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
 
