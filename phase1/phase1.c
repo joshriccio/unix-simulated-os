@@ -5,6 +5,8 @@
    Computer Science 452
    Fall 2015
 
+   @author Austin George
+   @author Joshua Riccio
    ------------------------------------------------------------------------ */
 
 #include "phase1.h"
@@ -20,8 +22,8 @@ extern int start1 (char *);
 void dispatcher(void);
 void launch();
 static void checkDeadlock();
-
-
+void addProcToReadyList(procPtr proc);
+void printReadyList();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -174,8 +176,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
         USLOSS_Halt(1);
     }
+  
     strcpy(ProcTable[procSlot].name, name);
-    ProcTable[procSlot].startFunc = startFunc;
+    ProcTable[procSlot].startFunc = startFunc; 
     if ( arg == NULL )
         ProcTable[procSlot].startArg[0] = '\0';
     else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -184,7 +187,18 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     else
         strcpy(ProcTable[procSlot].startArg, arg);
-
+    
+    //TODO Add all remaining variables to process
+    ProcTable[procSlot].pid = procSlot;  //TODO is the pid the procSlot?
+    ProcTable[procSlot].stackSize = stacksize;
+    ProcTable[procSlot].stack = malloc(stacksize);
+    ProcTable[procSlot].priority = priority;
+    ProcTable[procSlot].status = READY;
+    ProcTable[procSlot].childProcPtr = NULL;
+    ProcTable[procSlot].nextSiblingPtr = NULL;
+    ProcTable[procSlot].nextProcPtr = NULL; //TODO Write function that assigns
+                                            //this ptr to next in readyList
+    
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
 
@@ -198,7 +212,10 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // More stuff to do here...
 
-    return -1;  // -1 is not correct! Here to prevent warning.
+    //Add process to ready list
+    addProcToReadyList(&ProcTable[procSlot]);
+
+    return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
@@ -324,3 +341,53 @@ void disableInterrupts()
         // We ARE in kernel mode
         USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
 } /* disableInterrupts */
+
+/*
+ * Adds new process to ready list
+ */
+void addProcToReadyList(procPtr proc){
+  if(ReadyList == NULL){
+    ReadyList = proc; //In this case proc is the sentinel process
+  }else{
+    procPtr current = ReadyList;
+    procPtr next = current->nextProcPtr;
+    while(next != NULL && next->priority < proc->priority){
+      current = current->nextProcPtr;
+      next = current->nextProcPtr;
+    }
+    if(current->priority == proc->priority){
+      while(next->priority == proc->priority){
+        current = current->nextProcPtr;
+        next = current->nextProcPtr;
+      }
+      current->nextProcPtr = proc;
+      current->nextProcPtr->nextProcPtr = next;
+    }
+    if(current->priority > proc->priority){
+      procPtr temp = current;
+      current = proc;
+      proc->nextProcPtr = temp;  
+    }else{
+      current->nextProcPtr = proc;
+      current->nextProcPtr->nextProcPtr = next;
+    }  
+  }
+  if (DEBUG && debugflag){
+      USLOSS_Console("addProcToReadyList(): Process %s added to ReadyList\n",
+                     proc->name);
+     printReadyList(); 
+  }
+}
+
+void printReadyList(){
+  char str[500];
+  procPtr p = ReadyList;
+  strcpy(str, p->name);
+  while(p->nextProcPtr != NULL){
+   p = p->nextProcPtr;
+   strcat(str, p->name );
+  }
+  if (DEBUG && debugflag){
+      USLOSS_Console("printReadyList(): ReadyList contains: %s\n", str);
+  }
+}
