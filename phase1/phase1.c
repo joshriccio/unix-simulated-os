@@ -24,6 +24,8 @@ void launch();
 static void checkDeadlock();
 void addProcToReadyList(procPtr proc);
 void printReadyList();
+int getProcSlot();
+void initProcStruct(int index);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -31,7 +33,7 @@ int debugflag = 1;
 
 // the process table
 procStruct ProcTable[MAXPROC];
-int nextProcSlot = 0;
+unsigned short currentPID = 0; // last used pid
 
 // Process lists
 static procPtr ReadyList;
@@ -59,7 +61,9 @@ void startup()
     // initialize the process table
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing process table, ProcTable[]\n");
-    memset(ProcTable, 0, sizeof(procStruct) * MAXPROC);
+    for (int i = 0; i < 50; i++) {
+        initProcStruct(i);
+    }
 
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
@@ -150,26 +154,20 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
 
     // find an empty slot in the process table
-    procSlot = nextProcSlot;
-    while (ProcTable[nextProcSlot].status != 0) { // Status 0 = Quit
-        nextProcSlot++;
-        if (nextProcSlot == procSlot) {
-            if (DEBUG && debugflag) {
-                USLOSS_Console("fork1(): Process %s - no empty slot.\n", 
-                               name);
-            }
-            return -1;
+    procSlot = getProcSlot();
+    if (procSlot == -1) {
+        if (DEBUG && debugflag) {
+            USLOSS_Console("fork1(): Process %s - no empty slot.\n", 
+                           name);
         }
-        if (nextProcSlot > 49) {
-            nextProcSlot = 0;
-        }
+        return -1;
     }
+
     if (DEBUG && debugflag) {
         USLOSS_Console("fork1(): Process %s PID equals %d.\n", 
-                       name, nextProcSlot);
+                       name, currentPID);
     }
-    procSlot = nextProcSlot;
-    nextProcSlot++;
+
 
     // fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
@@ -187,17 +185,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     else
         strcpy(ProcTable[procSlot].startArg, arg);
-    
-    //TODO Add all remaining variables to process
-    ProcTable[procSlot].pid = procSlot;  //TODO is the pid the procSlot?
+
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].stack = malloc(stacksize);
-    ProcTable[procSlot].priority = priority;
-    ProcTable[procSlot].status = READY;
-    ProcTable[procSlot].childProcPtr = NULL;
-    ProcTable[procSlot].nextSiblingPtr = NULL;
-    ProcTable[procSlot].nextProcPtr = NULL; //TODO Write function that assigns
-                                            //this ptr to next in readyList
     
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
@@ -214,6 +204,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     //Add process to ready list
     addProcToReadyList(&ProcTable[procSlot]);
+
+    currentPID++;
 
     return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
@@ -390,4 +382,37 @@ void printReadyList(){
   if (DEBUG && debugflag){
       USLOSS_Console("printReadyList(): ReadyList contains: %s\n", str);
   }
+}
+
+int getProcSlot() {
+    int hashedIndex = currentPID % 50;
+    int startIndex = hashedIndex;
+    while (ProcTable[hashedIndex].status != EMPTY) {
+        hashedIndex++;
+        if (hashedIndex > 49) {
+            hashedIndex = 0;
+        }
+        if (hashedIndex == startIndex) {
+            return -1;
+        }
+    }
+    return hashedIndex;
+}
+
+// initialize Process Struct
+void initProcStruct(int index) {
+
+    ProcTable[index].pid = 0;
+    ProcTable[index].stackSize = 0;
+    ProcTable[index].stack = NULL; 
+    ProcTable[index].priority = 5;
+    ProcTable[index].status = EMPTY;
+    ProcTable[index].childProcPtr = NULL;
+    ProcTable[index].nextSiblingPtr = NULL;
+    ProcTable[index].nextProcPtr = NULL;
+    ProcTable[index].name[0] = '\0';
+    ProcTable[index].startArg[0] = '\0';
+    ProcTable[index].startFunc = NULL;
+    //ProcTable[index].state = NULL;
+
 }

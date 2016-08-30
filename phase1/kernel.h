@@ -58,3 +58,4 @@ int psrInit(struct psrBits * psr_bits, unsigned int psrValue) {
 #define READY 1
 #define BLOCKED 2
 #define QUIT 3
+#define EMPTY 4
