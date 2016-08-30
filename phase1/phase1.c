@@ -5,6 +5,8 @@
    Computer Science 452
    Fall 2015
 
+   @author Austin George
+   @author Joshua Riccio
    ------------------------------------------------------------------------ */
 
 #include "phase1.h"
@@ -194,7 +196,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     ProcTable[procSlot].status = READY;
     ProcTable[procSlot].childProcPtr = NULL;
     ProcTable[procSlot].nextSiblingPtr = NULL;
-    ProcTable[procSlot].nextProcPtr = NULL;
+    ProcTable[procSlot].nextProcPtr = NULL; //TODO Write function that assigns
+                                            //this ptr to next in readyList
     
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
