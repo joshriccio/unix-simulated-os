@@ -22,7 +22,7 @@ extern int start1 (char *);
 void dispatcher(void);
 void launch();
 static void checkDeadlock();
-
+void addProcToReadyList(procPtr proc);
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -212,6 +212,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // More stuff to do here...
 
+    //Add process to ready list
+    addProcToReadyList(&ProcTable[procSlot]);
+
     return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
 
@@ -338,3 +341,29 @@ void disableInterrupts()
         // We ARE in kernel mode
         USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
 } /* disableInterrupts */
+
+/*
+ * Adds new process to ready list
+ */
+void addProcToReadyList(procPtr proc){
+  if(ReadyList == NULL){
+    ReadyList = proc; //In this case proc is the sentinel process
+  }else{
+    procPtr p = ReadyList;
+    while(p->priority < proc->priority){
+      p = p->nextProcPtr;
+    }
+    if(p->priority == proc->priority){
+      while(p->nextProcPtr->priority == proc->priority){
+        p = p->nextProcPtr;
+    }
+    procPtr temp = p->nextProcPtr;
+    p->nextProcPtr = proc;
+    proc->nextProcPtr = temp;  
+    }
+  }
+  if (DEBUG && debugflag){
+      USLOSS_Console("addProcToReadyList(): Process %s added to ReadyList\n",
+                     proc->name);
+  }
+}
