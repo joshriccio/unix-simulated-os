@@ -23,7 +23,7 @@ void dispatcher(void);
 void launch();
 static void checkDeadlock();
 void addProcToReadyList(procPtr proc);
-
+void printReadyList();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -349,21 +349,44 @@ void addProcToReadyList(procPtr proc){
   if(ReadyList == NULL){
     ReadyList = proc; //In this case proc is the sentinel process
   }else{
-    procPtr p = ReadyList;
-    while(p->priority < proc->priority){
-      p = p->nextProcPtr;
+    procPtr current = ReadyList;
+    procPtr next = current->nextProcPtr;
+    while(next != NULL && next->priority < proc->priority){
+      current = current->nextProcPtr;
+      next = current->nextProcPtr;
     }
-    if(p->priority == proc->priority){
-      while(p->nextProcPtr->priority == proc->priority){
-        p = p->nextProcPtr;
+    if(current->priority == proc->priority){
+      while(next->priority == proc->priority){
+        current = current->nextProcPtr;
+        next = current->nextProcPtr;
+      }
+      current->nextProcPtr = proc;
+      current->nextProcPtr->nextProcPtr = next;
     }
-    procPtr temp = p->nextProcPtr;
-    p->nextProcPtr = proc;
-    proc->nextProcPtr = temp;  
-    }
+    if(current->priority > proc->priority){
+      procPtr temp = current;
+      current = proc;
+      current->nextProcPtr = temp;  
+    }else{
+      current->nextProcPtr = proc;
+      current->nextProcPtr->nextProcPtr = next;
+    }  
   }
   if (DEBUG && debugflag){
       USLOSS_Console("addProcToReadyList(): Process %s added to ReadyList\n",
                      proc->name);
+     printReadyList(); 
+  }
+}
+
+void printReadyList(){
+  char str[500];
+  procPtr p = ReadyList;
+  while(p != NULL){
+   strcpy(str, p->name );
+   p = p->nextProcPtr;
+  }
+  if (DEBUG && debugflag){
+      USLOSS_Console("printReadyList(): ReadyList contains: %s\n", str);
   }
 }
