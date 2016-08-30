@@ -366,7 +366,7 @@ void addProcToReadyList(procPtr proc){
     if(current->priority > proc->priority){
       procPtr temp = current;
       current = proc;
-      current->nextProcPtr = temp;  
+      proc->nextProcPtr = temp;  
     }else{
       current->nextProcPtr = proc;
       current->nextProcPtr->nextProcPtr = next;
@@ -382,9 +382,10 @@ void addProcToReadyList(procPtr proc){
 void printReadyList(){
   char str[500];
   procPtr p = ReadyList;
-  while(p != NULL){
-   strcpy(str, p->name );
+  strcpy(str, p->name);
+  while(p->nextProcPtr != NULL){
    p = p->nextProcPtr;
+   strcat(str, p->name );
   }
   if (DEBUG && debugflag){
       USLOSS_Console("printReadyList(): ReadyList contains: %s\n", str);
