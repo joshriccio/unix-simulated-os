@@ -1,0 +1,53 @@
+CSc 452 -- Principles of Operating Systems
+
+Project Survey
+
+This class is about to start a project that will span several
+different phases and due dates throughout the semester. 
+
+If you have already selected a partner, and have already discussed with
+your partner specific meeting times and places that you are setting
+aside for this work, then fill out what follows.  If you need a partner
+then fill out the other side of this form. 
+
+
+Return this form no later than 5:00 pm, Thursday, September 1st.
+
+                     Partnership Information
+
+Names of the partners: Jared Austin George
+                       Josh Riccio
+
+
+UA NetIds of the partners: jaustingeorge
+                           jriccio
+
+
+We have identified the following times and places for meetings.  The hours
+must total at least 10 during the week.  You are not obligated to meet during
+all of the hours listed each week.  This is intended to make sure you have
+worked out details of when and where for at least some time each week
+and both have agreed to these times and places.
+
+    Tuesday: 3:15 pm - 4:45 pm
+    Thursday: 3:15 pm - 4:45 pm
+    Saturday: 9:00 am - 4:00 pm
+
+
+Transportation.  How will each of you get to the meeting place(s) at the
+times listed?
+
+    We will be meeting in the U of A Main Library.
+
+We have exchanged the following information:
+  preferred email addresses:
+
+        jaustingeorge@email.arizona.edu
+        jriccio@email.arizona.edu
+
+  telephone number(s):
+
+        Austin: (801) 717-8103
+          Josh: (480) 707-8873
+
+Submit this on D2L in Assignment->Groups.
