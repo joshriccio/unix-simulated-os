@@ -188,6 +188,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].stack = malloc(stacksize);
+    ProcTable[procSlot].priority = priority;
+    ProcTable[procSlot].startFunc = startFunc;
     
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
@@ -337,39 +339,39 @@ void disableInterrupts()
 /*
  * Adds new process to ready list
  */
-void addProcToReadyList(procPtr proc){
-  if(ReadyList == NULL){
-    ReadyList = proc; //In this case proc is the sentinel process
-  }else{
-    procPtr current = ReadyList;
-    procPtr next = current->nextProcPtr;
-    while(next != NULL && next->priority < proc->priority){
-      current = current->nextProcPtr;
-      next = current->nextProcPtr;
+void addProcToReadyList(procPtr proc) {
+
+    if (DEBUG && debugflag){
+      USLOSS_Console("addProcToReadyList(): Adding process %s to ReadyList\n",
+                     proc->name);
     }
-    if(current->priority == proc->priority){
-      while(next->priority == proc->priority){
-        current = current->nextProcPtr;
-        next = current->nextProcPtr;
-      }
-      current->nextProcPtr = proc;
-      current->nextProcPtr->nextProcPtr = next;
+
+    if (ReadyList == NULL) {
+        ReadyList = proc; //In this case proc is the sentinel process
+    } else {
+        // all priorities in list are less than proc
+        if(ReadyList->priority > proc->priority) {
+            procPtr temp = ReadyList;
+            ReadyList = proc;
+            proc->nextProcPtr = temp;
+        } else { // add proc before first greater priority
+            procPtr next = ReadyList->nextProcPtr;
+            procPtr last = ReadyList;
+            while (next->priority < proc->priority) {
+                last = next;
+                next = next->nextProcPtr;
+            }
+            last->nextProcPtr = proc;
+        }
     }
-    if(current->priority > proc->priority){
-      procPtr temp = current;
-      current = proc;
-      proc->nextProcPtr = temp;  
-    }else{
-      current->nextProcPtr = proc;
-      current->nextProcPtr->nextProcPtr = next;
-    }  
-  }
-  if (DEBUG && debugflag){
+
+    if (DEBUG && debugflag){
       USLOSS_Console("addProcToReadyList(): Process %s added to ReadyList\n",
                      proc->name);
      printReadyList(); 
-  }
-}
+    }
+
+} // addProcToReadyList
 
 void printReadyList(){
   char str[500];
@@ -377,6 +379,7 @@ void printReadyList(){
   strcpy(str, p->name);
   while(p->nextProcPtr != NULL){
    p = p->nextProcPtr;
+   strcat(str, "->");
    strcat(str, p->name );
   }
   if (DEBUG && debugflag){
