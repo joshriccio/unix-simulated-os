@@ -3,7 +3,7 @@
 
    University of Arizona
    Computer Science 452
-   Fall 2015
+   Fall 2016
 
    @author Austin George
    @author Joshua Riccio
@@ -168,7 +168,6 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
                        name, currentPID);
     }
 
-
     // fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
@@ -193,7 +192,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
-
+    // TODO: procSlot.state value incorrect
     USLOSS_ContextInit(&(ProcTable[procSlot].state), USLOSS_PsrGet(),
                        ProcTable[procSlot].stack,
                        ProcTable[procSlot].stackSize,
@@ -209,7 +208,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     currentPID++;
 
-    return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
+    return ProcTable[procSlot].pid;
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
@@ -336,9 +335,19 @@ void disableInterrupts()
         USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
 } /* disableInterrupts */
 
-/*
- * Adds new process to ready list
- */
+/*---------------------------- addProcToReadyList -----------------------
+|  Function addProcToReadyList
+|
+|  Purpose:  Adds a new process to the ready list. Process is added to 
+|            the list based on priority. Lower priorities are placed at
+|            the front of the list.
+|
+|  Parameters:  proc (IN) -- The process to be added to the ready list.
+|
+|  Returns:  None
+|
+|  Side Effects:  proc is added to the correct location in ready list.
+*-------------------------------------------------------------------*/
 void addProcToReadyList(procPtr proc) {
 
     if (DEBUG && debugflag){
@@ -371,22 +380,42 @@ void addProcToReadyList(procPtr proc) {
      printReadyList(); 
     }
 
-} // addProcToReadyList
-
-void printReadyList(){
-  char str[500];
-  procPtr p = ReadyList;
-  strcpy(str, p->name);
-  while(p->nextProcPtr != NULL){
-   p = p->nextProcPtr;
-   strcat(str, "->");
-   strcat(str, p->name );
-  }
-  if (DEBUG && debugflag){
-      USLOSS_Console("printReadyList(): ReadyList contains: %s\n", str);
-  }
 }
 
+/*---------------------------- printReadyList -----------------------
+|  Function printReadyList
+|
+|  Purpose:  Prints a string representation of the ready list using
+|            the USLOSS_Console. Debugging must be enable.
+|
+|  Parameters:  None
+|
+|  Returns:  None
+*-------------------------------------------------------------------*/
+void printReadyList(){
+    char str[500];
+    procPtr p = ReadyList;
+    strcpy(str, p->name);
+    while(p->nextProcPtr != NULL){
+        p = p->nextProcPtr;
+        strcat(str, "->");
+        strcat(str, p->name );
+    }
+    if (DEBUG && debugflag){
+        USLOSS_Console("printReadyList(): ReadyList contains: %s\n", str);
+    }
+}
+
+/*---------------------------- getProcSlot -----------------------
+|  Function getProcSlot
+|
+|  Purpose:  Finds an empty index in the process table (ProcTable). 
+|
+|  Parameters:  None
+|
+|  Returns:  -1 if no slot is available or the index of the next
+|            empty slot in the process table.
+*-------------------------------------------------------------------*/
 int getProcSlot() {
     int hashedIndex = currentPID % 50;
     int startIndex = hashedIndex;
@@ -402,7 +431,20 @@ int getProcSlot() {
     return hashedIndex;
 }
 
-// initialize Process Struct
+/*---------------------------- initProcStruct -----------------------
+|  Function initProcStruct
+|
+|  Purpose:  Initializes a ProcStruct. Members are set to 0 or NULL,
+|            except in the case of priority which is set to the highest
+|            priority of five.
+|
+|  Parameters:
+|      index (IN) --  The index of the ProcStruct in the ProcTable
+|
+|  Returns:  None
+|
+|  Side Effects:  The members of the ProcStruct at index are changed.
+*-------------------------------------------------------------------*/
 void initProcStruct(int index) {
 
     ProcTable[index].pid = 0;
@@ -416,6 +458,6 @@ void initProcStruct(int index) {
     ProcTable[index].name[0] = '\0';
     ProcTable[index].startArg[0] = '\0';
     ProcTable[index].startFunc = NULL;
-    //ProcTable[index].state = NULL;
+    //ProcTable[index].state = NULL;         // TODO:
 
 }
