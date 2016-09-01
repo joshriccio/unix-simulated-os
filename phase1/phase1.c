@@ -174,7 +174,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
         USLOSS_Halt(1);
     }
-  
+    ProcTable[procSlot].pid = currentPID;
     strcpy(ProcTable[procSlot].name, name);
     ProcTable[procSlot].startFunc = startFunc; 
     if ( arg == NULL )
@@ -208,6 +208,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     addProcToReadyList(&ProcTable[procSlot]);
 
     currentPID++;
+    dispatcher();
 
     return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
@@ -285,9 +286,14 @@ void quit(int status)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
-    procPtr nextProcess = NULL;
-
-    p1_switch(Current->pid, nextProcess->pid);
+    if(Current != NULL){
+       procPtr nextProcess = ReadyList;
+       USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
+       p1_switch(Current->pid, nextProcess->pid);
+       Current = nextProcess;
+    }else{
+       Current = ReadyList;
+    }
 } /* dispatcher */
 
 
@@ -377,10 +383,24 @@ void printReadyList(){
   char str[500];
   procPtr p = ReadyList;
   strcpy(str, p->name);
+  strcat(str, ";Priority:");
+  char prior[10];
+  sprintf(prior,"%d", p->priority);
+  strcat(str, prior);
+  char pid[10];
+  strcat(str, ";PID:");
+  sprintf(pid,"%d", p->pid);
+  strcat(str, pid);
   while(p->nextProcPtr != NULL){
    p = p->nextProcPtr;
    strcat(str, "->");
    strcat(str, p->name );
+   strcat(str, ";Priority:");
+   sprintf(prior,"%d", p->priority);
+   strcat(str, prior);
+   strcat(str, ";PID:");
+   sprintf(pid,"%d", p->pid);
+   strcat(str, pid);
   }
   if (DEBUG && debugflag){
       USLOSS_Console("printReadyList(): ReadyList contains: %s\n", str);
