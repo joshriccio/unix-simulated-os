@@ -20,6 +20,9 @@ git add *.c
 git commit -am "first commit, updating all files"
 
 //Push changes to the branch, preferably create a branch and push to branch
+//Always pull first if you are push to master, perferably don't ever push to master, 
+//make a pull request online to merge your branch, this will alliviate merge conflicts
+git pull origin <branchName> 
 git push origin <branchName>
 
 //RESOLVE MERGE CONFLICT
