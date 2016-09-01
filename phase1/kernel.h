@@ -37,7 +37,7 @@ union psrValues {
 };
 
 // TODO: Untested bits
-int psrInit(struct psrBits * psr_bits, unsigned int psrValue) {
+/*int psrInit(struct psrBits * psr_bits, unsigned int psrValue) {
 
     psr_bits->curMode = psrValue & 1;
     psr_bits->curIntEnable = psrValue & 2;
@@ -45,6 +45,22 @@ int psrInit(struct psrBits * psr_bits, unsigned int psrValue) {
     psr_bits->prevIntEnable = psrValue & 8;
 
     return 0;
+}*/
+
+int getPsrCurMode(int psrValue) {
+    return psrValue & 1;
+}
+
+int getPsrCurInteruptMode(int psrValue) {
+    return psrValue & 2;
+}
+
+int getPsrPrevMode(int psrValue) {
+    return psrValue & 4;
+}
+
+int getPsrPrevInteruptMode(int psrValue) {
+    return psrValue & 8;
 }
 
 /* Some useful constants.  Add more as needed... */

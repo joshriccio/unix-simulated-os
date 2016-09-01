@@ -130,14 +130,14 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
     int procSlot = -1;
-    struct psrBits psr;  //TODO: verify var name
+    //struct psrBits psr;  //TODO: verify var name
 
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     // test if in kernel mode; halt if in user mode
-    psrInit(&psr, USLOSS_PsrGet());
-    if (psr.curMode == 1) {
+    //psrInit(&psr, USLOSS_PsrGet());
+    if (USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE) {
         if (DEBUG && debugflag) {
             USLOSS_Console("fork1(): User %s is in kernal mode.\n", name);
         }
@@ -228,6 +228,7 @@ void launch()
         USLOSS_Console("launch(): started\n");
 
     // Enable interrupts
+    USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
 
     // Call the function passed to fork1, and capture its return value
     result = Current->startFunc(Current->startArg);
@@ -285,6 +286,10 @@ void quit(int status)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
+    //TODO:
+    if (DEBUG && debugflag)
+        USLOSS_Console("dispatcher(): started.\n");
+
     if(Current != NULL){
        procPtr nextProcess = ReadyList;
        USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
@@ -293,6 +298,8 @@ void dispatcher(void)
     }else{
        Current = ReadyList;
     }
+    if (DEBUG && debugflag)
+        USLOSS_Console("dispatcher(): process is %s.\n", Current->name);
 } /* dispatcher */
 
 
