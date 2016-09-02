@@ -1,0 +1,23 @@
+#Git Ignore Doc for OS Project
+
+#Compiled testcases
+phase1/test00
+phase1/test00.o
+
+#.out files
+*.out
+
+#All .o files
+*.o
+
+#accidental swap files
+*.swo
+
+#usloss directory
+phase1/usloss
+
+#Core files 
+core
+
+#libphase1.a
+phase1/libphase1.a
