@@ -130,13 +130,11 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
     int procSlot = -1;
-    //struct psrBits psr;  //TODO: verify var name
 
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     // test if in kernel mode; halt if in user mode
-    //psrInit(&psr, USLOSS_PsrGet());
     if (USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE) {
         if (DEBUG && debugflag) {
             USLOSS_Console("fork1(): User %s is in kernal mode.\n", name);
@@ -168,7 +166,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
                        name, currentPID);
     }
 
-    // fill-in entry in process table */
+    // fill-in entry in process table
     if ( strlen(name) >= (MAXNAME - 1) ) {
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
         USLOSS_Halt(1);
@@ -176,23 +174,34 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     ProcTable[procSlot].pid = currentPID;
     strcpy(ProcTable[procSlot].name, name);
     ProcTable[procSlot].startFunc = startFunc; 
-    if ( arg == NULL )
+    if (arg == NULL) {
         ProcTable[procSlot].startArg[0] = '\0';
-    else if ( strlen(arg) >= (MAXARG - 1) ) {
+    } else if ( strlen(arg) >= (MAXARG - 1) ) {
         USLOSS_Console("fork1(): argument too long.  Halting...\n");
         USLOSS_Halt(1);
-    }
-    else
+    } else {
         strcpy(ProcTable[procSlot].startArg, arg);
-
+    }
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].stack = malloc(stacksize);
     ProcTable[procSlot].priority = priority;
-    ProcTable[procSlot].startFunc = startFunc;
+    if (Current != NULL) { // Current is the parent process
+        if (Current->childProcPtr == NULL) {  // Current has no children
+            Current->childProcPtr = &ProcTable[procSlot];
+        } else {  // Current has children
+            procPtr sibling = Current->childProcPtr->nextSiblingPtr;
+            if (sibling != NULL) { // Child of Current has siblings
+                while (sibling != NULL) { // Find last sibling of child
+                    sibling = sibling->nextSiblingPtr;
+                }
+            }
+            sibling = &ProcTable[procSlot]; // Insert child at end of Sib List
+        }
+    } 
+    ProcTable[procSlot].parentPtr = Current; // Parent is NULL if Current is
     
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
-    // TODO: procSlot.state value incorrect
     USLOSS_ContextInit(&(ProcTable[procSlot].state), USLOSS_PsrGet(),
                        ProcTable[procSlot].stack,
                        ProcTable[procSlot].stackSize,
@@ -201,13 +210,14 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     // for future phase(s)
     p1_fork(ProcTable[procSlot].pid);
 
-    // More stuff to do here...
-
     //Add process to ready list
+    ProcTable[procSlot].status = READY;
     addProcToReadyList(&ProcTable[procSlot]);
 
-    currentPID++;
-    dispatcher();
+    currentPID++;  // increment for next process to start at this pid
+    if (ProcTable[procSlot].pid != 0) {
+        dispatcher();
+    }
 
     return ProcTable[procSlot].pid;
 } /* fork1 */
@@ -286,20 +296,22 @@ void quit(int status)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
-    //TODO:
     if (DEBUG && debugflag)
         USLOSS_Console("dispatcher(): started.\n");
 
-    if(Current != NULL){
+    if (Current == NULL) { // Dispatcher called for first time
+       Current = ReadyList;
+        if (DEBUG && debugflag)
+            USLOSS_Console("dispatcher(): dispatching %s.\n", Current->name);
+       USLOSS_ContextSwitch(NULL, &Current->state);
+    } else {
        procPtr nextProcess = ReadyList;
        USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
-       p1_switch(Current->pid, nextProcess->pid);
        Current = nextProcess;
-    }else{
-       Current = ReadyList;
+        if (DEBUG && debugflag)
+            USLOSS_Console("dispatcher(): dispatching %s.\n", 
+                    Current->name);
     }
-    if (DEBUG && debugflag)
-        USLOSS_Console("dispatcher(): process is %s.\n", Current->name);
 } /* dispatcher */
 
 
@@ -444,16 +456,15 @@ void printReadyList(){
 |            empty slot in the process table.
 *-------------------------------------------------------------------*/
 int getProcSlot() {
-    int hashedIndex = currentPID % 50;
-    int startIndex = hashedIndex;
+    int hashedIndex = currentPID % MAXPROC;
+    int counter = 0;
     while (ProcTable[hashedIndex].status != EMPTY) {
-        hashedIndex++;
-        if (hashedIndex > 49) {
-            hashedIndex = 0;
-        }
-        if (hashedIndex == startIndex) {
+        currentPID++;
+        hashedIndex = currentPID % MAXPROC;
+        if (counter >= MAXPROC) {
             return -1;
         }
+        counter++;
     }
     return hashedIndex;
 }
