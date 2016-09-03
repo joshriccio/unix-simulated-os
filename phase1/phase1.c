@@ -349,6 +349,7 @@ void dispatcher(void)
                     Current->name);
        USLOSS_ContextSwitch(&old->state, &Current->state);
     }
+    dumpProcesses();
 } /* dispatcher */
 
 
@@ -563,3 +564,30 @@ int childStatusExists(procPtr parent, int status) {
     }
     return 0;
 }
+
+void dumpProcesses(){
+    char *ready = "READY";
+    char *blocked = "BLOCKED";
+    char *join_blocked = "JOIN_BLOCKED";
+    char *quit = "QUIT";
+    USLOSS_Console("\n     PID       Name   Priority     Status\n");
+    for(int i=0; i<50; i++){
+        char *status;
+        if(ProcTable[i].status != EMPTY){
+           switch(ProcTable[i].status) {
+               case READY : status = ready;
+                   break;
+	       case BLOCKED  : status = blocked;
+                   break;
+               case JOIN_BLOCKED : status = join_blocked;
+                   break;
+               case QUIT  : status = quit;
+                   break;
+           default : status = "N/A";
+}
+           USLOSS_Console("%8d %10s %10d %10s\n", ProcTable[i].pid, 
+                          ProcTable[i].name, ProcTable[i].priority, status); 
+        }
+    }
+}
+
