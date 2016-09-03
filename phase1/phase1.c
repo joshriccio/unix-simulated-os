@@ -31,7 +31,7 @@ int childStatusExists(procPtr parent, int status);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 0;
+int debugflag = 1;
 
 // the process table
 procStruct ProcTable[MAXPROC];
@@ -573,9 +573,10 @@ void dumpProcesses(){
     char *blocked = "BLOCKED";
     char *join_blocked = "JOIN_BLOCKED";
     char *quit = "QUIT";
-    USLOSS_Console("\n     PID       Name   Priority     Status\n");
+    USLOSS_Console("\n     PID       Name   Priority     Status     Parent\n");
     for(int i=0; i<50; i++){
         char *status;
+        char *parent;
         if(ProcTable[i].status != EMPTY){
            switch(ProcTable[i].status) {
                case READY : status = ready;
@@ -588,8 +589,14 @@ void dumpProcesses(){
                    break;
                default : status = "N/A";
            }
-           USLOSS_Console("%8d %10s %10d %10s\n", ProcTable[i].pid, 
-                          ProcTable[i].name, ProcTable[i].priority, status); 
+           if(ProcTable[i].parentPtr != NULL){
+               parent = ProcTable[i].parentPtr->name;
+           }else{
+               parent = "NULL";
+           }
+           USLOSS_Console("%8d %10s %10d %10s %10s\n", ProcTable[i].pid, 
+                          ProcTable[i].name, ProcTable[i].priority, 
+                          status, parent); 
         }
     }
 }
