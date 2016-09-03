@@ -586,8 +586,8 @@ void dumpProcesses(){
                    break;
                case QUIT  : status = quit;
                    break;
-           default : status = "N/A";
-}
+               default : status = "N/A";
+           }
            USLOSS_Console("%8d %10s %10d %10s\n", ProcTable[i].pid, 
                           ProcTable[i].name, ProcTable[i].priority, status); 
         }
