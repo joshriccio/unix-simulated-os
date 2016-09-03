@@ -349,7 +349,10 @@ void dispatcher(void)
                     Current->name);
        USLOSS_ContextSwitch(&old->state, &Current->state);
     }
-    dumpProcesses();
+    if (DEBUG && debugflag){
+       USLOSS_Console("dispatcher(): Printing process table");
+       dumpProcesses();
+    }
 } /* dispatcher */
 
 
