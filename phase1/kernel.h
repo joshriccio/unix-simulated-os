@@ -21,6 +21,7 @@ struct procStruct {
    char           *stack;
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
+   int             quitStatus;
    /* other fields as needed... */
 };
 
@@ -74,5 +75,6 @@ int getPsrPrevInteruptMode(int psrValue) {
 //TODO Add more status contants
 #define READY 1
 #define BLOCKED 2
-#define QUIT 3
-#define EMPTY 4
+#define JOIN_BLOCKED 3
+#define QUIT 4
+#define EMPTY 5

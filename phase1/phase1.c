@@ -26,10 +26,12 @@ void addProcToReadyList(procPtr proc);
 void printReadyList();
 int getProcSlot();
 void initProcStruct(int index);
+int allChildrenQuit(procPtr parent);
+int childStatusExists(procPtr parent, int status);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 1;
+int debugflag = 0;
 
 // the process table
 procStruct ProcTable[MAXPROC];
@@ -244,7 +246,8 @@ void launch()
     result = Current->startFunc(Current->startArg);
 
     if (DEBUG && debugflag)
-        USLOSS_Console("Process %d returned to launch\n", Current->pid);
+        USLOSS_Console("launch(): Process %d returned to launch\n", 
+                Current->pid);
 
     quit(result);
 
@@ -265,6 +268,25 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *status)
 {
+    if (childStatusExists(Current, QUIT)) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("join(): should not be here!\n");
+    } else {
+        if (DEBUG && debugflag)
+            USLOSS_Console("join(): %s is JOIN_BLOCKED.\n", Current->name);
+        Current->status = JOIN_BLOCKED;
+        ReadyList = ReadyList->nextProcPtr;
+        printReadyList();
+        dispatcher();
+    }
+    // Code for removing child
+    /* 
+     * find first quit child
+     * save quit status
+     * remove process from table
+     * reassign sibling pointer
+     * if head, reassign parent child ptr
+     */
     return -1;  // -1 is not correct! Here to prevent warning.
 } /* join */
 
@@ -280,7 +302,22 @@ int join(int *status)
    ------------------------------------------------------------------------ */
 void quit(int status)
 {
+    if (DEBUG && debugflag)
+        USLOSS_Console("quit(): Quitting %s, status is %d.\n", 
+                Current->name, status);
+
+    if (!allChildrenQuit(Current)) { // The process has an active child
+        if (DEBUG && debugflag)
+            USLOSS_Console("quit(): Halting  %s.\n", Current->name);
+        USLOSS_Halt(1);
+    }
+    Current->quitStatus = status;
+    Current->status = QUIT;
+
+    Current->parentPtr->status = READY;
+    addProcToReadyList(Current->parentPtr);
     p1_quit(Current->pid);
+    dispatcher();
 } /* quit */
 
 
@@ -305,12 +342,12 @@ void dispatcher(void)
             USLOSS_Console("dispatcher(): dispatching %s.\n", Current->name);
        USLOSS_ContextSwitch(NULL, &Current->state);
     } else {
-       procPtr nextProcess = ReadyList;
-       USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
-       Current = nextProcess;
+        procPtr old = Current;
+        Current = ReadyList;
         if (DEBUG && debugflag)
             USLOSS_Console("dispatcher(): dispatching %s.\n", 
                     Current->name);
+       USLOSS_ContextSwitch(&old->state, &Current->state);
     }
 } /* dispatcher */
 
@@ -496,6 +533,33 @@ void initProcStruct(int index) {
     ProcTable[index].name[0] = '\0';
     ProcTable[index].startArg[0] = '\0';
     ProcTable[index].startFunc = NULL;
-    //ProcTable[index].state = NULL;         // TODO:
+    ProcTable[index].parentPtr = NULL;
+    ProcTable[index].quitStatus = 0;
 
+}
+
+int allChildrenQuit(procPtr parent) {
+    if (parent->childProcPtr != NULL) { // parent has a child
+        procPtr child = parent->childProcPtr;
+        while(child != NULL) {
+            if (child->status != QUIT) {
+                return 0;
+            }
+            child = child->nextSiblingPtr;
+        }
+    }
+    return 1;
+}
+
+int childStatusExists(procPtr parent, int status) {
+    if (parent->childProcPtr != NULL) { // parent has a child
+        procPtr child = parent->childProcPtr;
+        while(child != NULL) {
+            if (child->status == status) {
+                return 1;
+            }
+            child = child->nextSiblingPtr;
+        }
+    }
+    return 0;
 }
