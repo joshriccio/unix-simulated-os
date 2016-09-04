@@ -437,6 +437,7 @@ void addProcToReadyList(procPtr proc) {
                 next = next->nextProcPtr;
             }
             last->nextProcPtr = proc;
+            proc->nextProcPtr = next;
         }
     }
 
@@ -452,38 +453,29 @@ void addProcToReadyList(procPtr proc) {
 |  Function printReadyList
 |
 |  Purpose:  Prints a string representation of the ready list using
-|            the USLOSS_Console. Debugging must be enable.
+|            the USLOSS_Console containing name and priority of process.
+|            Debugging must be enable.
 |
 |  Parameters:  None
 |
 |  Returns:  None
 *-------------------------------------------------------------------*/
 void printReadyList(){
-  char str[500];
-  procPtr p = ReadyList;
-  strcpy(str, p->name);
-  strcat(str, ";Priority:");
-  char prior[10];
-  sprintf(prior,"%d", p->priority);
-  strcat(str, prior);
-  char pid[10];
-  strcat(str, ";PID:");
-  sprintf(pid,"%d", p->pid);
-  strcat(str, pid);
-  while(p->nextProcPtr != NULL){
-   p = p->nextProcPtr;
-   strcat(str, "->");
-   strcat(str, p->name );
-   strcat(str, ";Priority:");
-   sprintf(prior,"%d", p->priority);
-   strcat(str, prior);
-   strcat(str, ";PID:");
-   sprintf(pid,"%d", p->pid);
-   strcat(str, pid);
-  }
-  if (DEBUG && debugflag){
-      USLOSS_Console("printReadyList(): ReadyList contains: %s\n", str);
-  }
+    char str[500], str1[25];
+    
+    procPtr head = ReadyList;
+    
+    sprintf(str, "%s(%d)", head->name, head->priority);
+
+    while (head->nextProcPtr != NULL) {
+        head = head->nextProcPtr;
+        sprintf(str1, " -> %s(%d)", head->name, head->priority);
+        strcat(str, str1);
+    }
+
+    if (DEBUG && debugflag){
+      USLOSS_Console("printReadyList(): %s\n", str);
+    }
 }
 
 /*---------------------------- getProcSlot -----------------------
