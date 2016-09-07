@@ -22,6 +22,8 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    int             quitStatus;
+   int             startTime;
+   int             runTime;
    /* other fields as needed... */
 };
 
@@ -71,6 +73,7 @@ int getPsrPrevInteruptMode(int psrValue) {
 #define MAXPRIORITY 1
 #define SENTINELPID 1
 #define SENTINELPRIORITY (MINPRIORITY + 1)
+#define TIME_SLICE 80000
 
 //TODO Add more status contants
 #define READY 1

@@ -29,10 +29,12 @@ void initProcStruct(int index);
 int allChildrenQuit(procPtr parent);
 procPtr firstChildWithStatus(procPtr parent, int status);
 void removeProcFromList(procPtr process);
+void clock_handler();
+int readTime();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 1;
+int debugflag = 0;
 
 // the process table
 procStruct ProcTable[MAXPROC];
@@ -74,6 +76,7 @@ void startup()
     ReadyList = NULL;
 
     // Initialize the clock interrupt handler
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
 
     // startup a sentinel process
     if (DEBUG && debugflag)
@@ -390,6 +393,7 @@ void dispatcher(void)
         Current = ReadyList;
         if (DEBUG && debugflag)
             USLOSS_Console("dispatcher(): dispatching %s.\n", Current->name);
+        Current->startTime = USLOSS_Clock();
         USLOSS_ContextSwitch(NULL, &Current->state);
     } else {
         procPtr old = Current;
@@ -397,11 +401,12 @@ void dispatcher(void)
         if (DEBUG && debugflag)
             USLOSS_Console("dispatcher(): dispatching %s.\n", 
                     Current->name);
-       USLOSS_ContextSwitch(&old->state, &Current->state);
+        Current->startTime = USLOSS_Clock();
+        USLOSS_ContextSwitch(&old->state, &Current->state);
     }
     if (DEBUG && debugflag){
-       USLOSS_Console("dispatcher(): Printing process table");
-       dumpProcesses();
+        USLOSS_Console("dispatcher(): Printing process table");
+        dumpProcesses();
     }
 } /* dispatcher */
 
@@ -434,6 +439,13 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
+    for (int i = 0; i < MAXPROC; i++) {
+        if (Current->status == BLOCKED || Current->status == JOIN_BLOCKED) {
+            break;
+        }
+        USLOSS_Console("All processes completed.\n");
+        USLOSS_Halt(0);
+    }
 } /* checkDeadlock */
 
 
@@ -656,4 +668,19 @@ void removeProcFromList(procPtr process) {
         }
         temp->nextSiblingPtr = temp->nextSiblingPtr->nextSiblingPtr;
     }
+}
+
+void clock_handler() {
+    if (DEBUG && debugflag) {
+       USLOSS_Console("clock_handler(): inside clock handler.\n");
+    }
+    if (readTime() > TIME_SLICE) {
+        Current->runTime = 0;
+        dispatcher();
+    }
+}
+
+int readTime() {
+    int time = USLOSS_Clock();
+    return (time - Current->startTime) + Current->runTime;
 }
