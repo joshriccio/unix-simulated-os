@@ -64,7 +64,7 @@ void startup()
     // initialize the process table
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing process table, ProcTable[]\n");
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < MAXPROC; i++) {
         initProcStruct(i);
     }
 
@@ -354,14 +354,19 @@ void quit(int status)
     }
     Current->quitStatus = status;
     Current->status = QUIT;
+    ReadyList = ReadyList->nextProcPtr;
+    
     if (Current->parentPtr != NULL) {
         Current->parentPtr->status = READY;
         addProcToReadyList(Current->parentPtr);
     } else {
         //ReadyList = ReadyList->nextProcPtr;
         //initProcStruct(Current->pid % MAXPROC);
+        Current->status = EMPTY; //TODO:
     }
     p1_quit(Current->pid);
+    if (DEBUG && debugflag)
+        dumpProcesses();
     dispatcher();
 } /* quit */
 
@@ -382,10 +387,10 @@ void dispatcher(void)
         USLOSS_Console("dispatcher(): started.\n");
 
     if (Current == NULL) { // Dispatcher called for first time
-       Current = ReadyList;
+        Current = ReadyList;
         if (DEBUG && debugflag)
             USLOSS_Console("dispatcher(): dispatching %s.\n", Current->name);
-       USLOSS_ContextSwitch(NULL, &Current->state);
+        USLOSS_ContextSwitch(NULL, &Current->state);
     } else {
         procPtr old = Current;
         Current = ReadyList;
@@ -419,6 +424,8 @@ int sentinel (char *dummy)
     while (1)
     {
         checkDeadlock();
+        if (DEBUG && debugflag)
+            USLOSS_Console("sentinel(): before WaitInt()\n");
         USLOSS_WaitInt();
     }
 } /* sentinel */
@@ -566,7 +573,7 @@ void initProcStruct(int index) {
     ProcTable[index].pid = 0;
     ProcTable[index].stackSize = 0;
     ProcTable[index].stack = NULL; 
-    ProcTable[index].priority = 5;
+    ProcTable[index].priority = MINPRIORITY;
     ProcTable[index].status = EMPTY;
     ProcTable[index].childProcPtr = NULL;
     ProcTable[index].nextSiblingPtr = NULL;
