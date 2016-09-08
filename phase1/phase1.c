@@ -195,13 +195,12 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         if (Current->childProcPtr == NULL) {  // Current has no children
             Current->childProcPtr = &ProcTable[procSlot];
         } else {  // Current has children
-            procPtr sibling = Current->childProcPtr->nextSiblingPtr;
-            if (sibling != NULL) { // Child of Current has siblings
-                while (sibling != NULL) { // Find last sibling of child
-                    sibling = sibling->nextSiblingPtr;
-                }
+            procPtr child = Current->childProcPtr;
+            while (child->nextSiblingPtr != NULL) { // Find last sibling in L 
+                child = child->nextSiblingPtr;
             }
-            sibling = &ProcTable[procSlot]; // Insert child at end of Sib List
+            // Insert child at end of Sib List
+            child->nextSiblingPtr = &ProcTable[procSlot]; 
         }
     } 
     ProcTable[procSlot].parentPtr = Current; // Parent is NULL if Current is
@@ -365,7 +364,7 @@ void quit(int status)
     } else {
         //ReadyList = ReadyList->nextProcPtr;
         //initProcStruct(Current->pid % MAXPROC);
-        Current->status = EMPTY; //TODO:
+        Current->status = EMPTY; //TODO: can probably use init cmd above
     }
     p1_quit(Current->pid);
     if (DEBUG && debugflag)
@@ -440,12 +439,13 @@ int sentinel (char *dummy)
 static void checkDeadlock()
 {
     for (int i = 0; i < MAXPROC; i++) {
-        if (Current->status == BLOCKED || Current->status == JOIN_BLOCKED) {
-            break;
+        if (ProcTable[i].status >= BLOCKED) { // process is blocked in any way
+            // TODO: think about Halt(1)
+            return;
         }
-        USLOSS_Console("All processes completed.\n");
-        USLOSS_Halt(0);
     }
+    USLOSS_Console("All processes completed.\n");
+    USLOSS_Halt(0);
 } /* checkDeadlock */
 
 
@@ -664,6 +664,9 @@ void removeProcFromList(procPtr process) {
     } else { // process is in the middle or end of linked list
         procPtr temp = process->parentPtr->childProcPtr;
         while (temp->nextSiblingPtr != process) {
+            if (DEBUG && debugflag) {
+               USLOSS_Console("removeProcFromList(): temp: %s.\n", temp->name);
+            }
             temp = temp->nextSiblingPtr;
         }
         temp->nextSiblingPtr = temp->nextSiblingPtr->nextSiblingPtr;

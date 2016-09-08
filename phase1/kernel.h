@@ -77,7 +77,7 @@ int getPsrPrevInteruptMode(int psrValue) {
 
 //TODO Add more status contants
 #define READY 1
-#define BLOCKED 2
-#define JOIN_BLOCKED 3
 #define QUIT 4
 #define EMPTY 5
+#define BLOCKED 30
+#define JOIN_BLOCKED 31
