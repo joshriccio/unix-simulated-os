@@ -12,6 +12,8 @@ struct procStruct {
    procPtr         childProcPtr;
    procPtr         nextSiblingPtr;
    procPtr         parentPtr;
+   procPtr         quitChildPtr;  //TODO: init to NULL, fix in quit
+   procPtr         nextQuitSibling;  // TODO: init to NULL
    char            name[MAXNAME];     /* process's name */
    char            startArg[MAXARG];  /* args passed to process */
    USLOSS_Context  state;             /* current context for process */
@@ -22,7 +24,7 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    int             quitStatus;
-   int             startTime;
+   int             startTime; // TODO: add to initProc
    int             runTime;
    /* other fields as needed... */
 };
