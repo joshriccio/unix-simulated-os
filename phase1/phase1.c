@@ -25,10 +25,11 @@ static void checkDeadlock();
 void addProcToReadyList(procPtr proc);
 void printReadyList();
 int getProcSlot();
-void zeroProcStruct(int index);
-int allChildrenQuit(procPtr parent);
+void zeroProcStruct(int pid);
+int allChildrenQuit(procPtr parent); // TODO: possibly remove
 procPtr firstChildWithStatus(procPtr parent, int status);
-void removeProcFromList(procPtr process);
+void removeFromChildList(procPtr process);
+void removeFromQuitList(procPtr process);
 void clock_handler();
 int readTime();
 void disableInterrupts();
@@ -37,7 +38,7 @@ int getpid();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 1;
+int debugflag = 0;
 
 // the process table
 procStruct ProcTable[MAXPROC];
@@ -273,8 +274,8 @@ int join(int *status)
 {
     int childPID = -3;
     procPtr child;
-
-    if (Current->childProcPtr == NULL) { // Process has no children
+    // Process has no children
+    if (Current->childProcPtr == NULL && Current->quitChildPtr == NULL) {
         if (DEBUG && debugflag)
             USLOSS_Console("join(): Process %s has no children.\n", 
                     Current->name);
@@ -302,9 +303,8 @@ int join(int *status)
     }
     childPID = child->pid;
     *status = child->quitStatus;
-    removeProcFromList(child);
-    ProcTable[childPID % MAXPROC].status = EMPTY;           
-    //zeroProcStruct(childPID % MAXPROC);
+    removeFromQuitList(child);
+    zeroProcStruct(childPID);
     return childPID;
 } /* join */
 
@@ -324,7 +324,7 @@ void quit(int status)
         USLOSS_Console("quit(): Quitting %s, status is %d.\n", 
                 Current->name, status);
 
-    if (!allChildrenQuit(Current)) { // The process has an active child
+    if (Current->childProcPtr != NULL) { // The process has an active child
         if (DEBUG && debugflag)
             USLOSS_Console("quit(): Halting  %s.\n", Current->name);
         USLOSS_Halt(1);
@@ -334,14 +334,18 @@ void quit(int status)
     Current->status = QUIT;
     ReadyList = ReadyList->nextProcPtr; // take off ready list
     
-    // TODO: parent and child
     // The process that is quitting is a child
     if (Current->parentPtr != NULL) {
         Current->parentPtr->status = READY;
         addToQuitChildList(Current->parentPtr);
+        removeFromChildList(Current);
         addProcToReadyList(Current->parentPtr);
     } else {  // process is a parent
-        // TODO: clean up quit children
+        while (Current->quitChildPtr != NULL) {
+            int childPID = Current->quitChildPtr->pid;
+            removeFromQuitList(Current->quitChildPtr);
+            zeroProcStruct(childPID);
+        }
         //ReadyList = ReadyList->nextProcPtr;
         //zeroProcStruct(Current->pid % MAXPROC);
         Current->status = EMPTY; //TODO: can probably use init cmd above
@@ -566,7 +570,8 @@ int getProcSlot() {
 |
 |  Side Effects:  The members of the ProcStruct at index are changed.
 *-------------------------------------------------------------------*/
-void zeroProcStruct(int index) {
+void zeroProcStruct(int pid) {
+    int index = pid % MAXPROC;
 
     ProcTable[index].pid = -1;
     ProcTable[index].stackSize = -1;
@@ -576,11 +581,14 @@ void zeroProcStruct(int index) {
     ProcTable[index].childProcPtr = NULL;
     ProcTable[index].nextSiblingPtr = NULL;
     ProcTable[index].nextProcPtr = NULL;
+    ProcTable[index].quitChildPtr = NULL;
+    ProcTable[index].nextQuitSibling = NULL;
     ProcTable[index].name[0] = '\0';
     ProcTable[index].startArg[0] = '\0';
     ProcTable[index].startFunc = NULL;
     ProcTable[index].parentPtr = NULL;
     ProcTable[index].quitStatus = -666;
+    ProcTable[index].startTime = -1;
 
 }
 
@@ -643,19 +651,30 @@ void dumpProcesses(){
     }
 }
 
-void removeProcFromList(procPtr process) {
+void removeFromChildList(procPtr process) {
+    procPtr temp = process;
     // process is at the head of the linked list
     if (process == process->parentPtr->childProcPtr) {
         process->parentPtr->childProcPtr = process->nextSiblingPtr;
     } else { // process is in the middle or end of linked list
-        procPtr temp = process->parentPtr->childProcPtr;
+        temp = process->parentPtr->childProcPtr;
         while (temp->nextSiblingPtr != process) {
-            if (DEBUG && debugflag) {
-               USLOSS_Console("removeProcFromList(): temp: %s.\n", temp->pid);
-            }
             temp = temp->nextSiblingPtr;
         }
         temp->nextSiblingPtr = temp->nextSiblingPtr->nextSiblingPtr;
+    }
+    if (DEBUG && debugflag) {
+       USLOSS_Console("removeFromChildList(): Process %d removed.\n", 
+                      temp->pid);
+    }
+}
+
+void removeFromQuitList(procPtr process) {
+    process->parentPtr->quitChildPtr = process->nextQuitSibling;
+
+    if (DEBUG && debugflag) {
+       USLOSS_Console("removeFromQuitList(): Process %d removed.\n", 
+                      process->pid);
     }
 }
 
@@ -663,15 +682,11 @@ void clock_handler() {
     if (DEBUG && debugflag) {
        USLOSS_Console("clock_handler(): inside clock handler.\n");
     }
-    if (readTime() > TIME_SLICE) {
-        Current->runTime = 0;
-        dispatcher();
-    }
 }
 
 int readTime() {
-    int time = USLOSS_Clock();
-    return (time - Current->startTime) + Current->runTime;
+    //int time = USLOSS_Clock();
+    return -1;
 }
 
 void addToQuitChildList(procPtr ptr) {
