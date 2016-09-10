@@ -651,7 +651,7 @@ void removeProcFromList(procPtr process) {
         procPtr temp = process->parentPtr->childProcPtr;
         while (temp->nextSiblingPtr != process) {
             if (DEBUG && debugflag) {
-               USLOSS_Console("removeProcFromList(): temp: %s.\n", temp->name);
+               USLOSS_Console("removeProcFromList(): temp: %s.\n", temp->pid);
             }
             temp = temp->nextSiblingPtr;
         }
