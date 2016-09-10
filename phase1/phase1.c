@@ -31,10 +31,13 @@ procPtr firstChildWithStatus(procPtr parent, int status);
 void removeFromChildList(procPtr process);
 void removeFromQuitList(procPtr process);
 void clock_handler();
-int readTime();
+int readtime();
 void disableInterrupts();
 void addToQuitChildList(procPtr ptr);
 int getpid();
+void timeSlice();
+int readCurStartTime();
+int isBlocked(int index);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -139,6 +142,11 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
     // test if in kernel mode; halt if in user mode; disabling interrupts
+    if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+        USLOSS_Console("fork1(): called while in user mode, by process %d."
+                       " Halting...\n", Current->pid);
+        USLOSS_Halt(1);
+    }
     if (DEBUG && debugflag) {
         USLOSS_Console("fork1(): Process %s is disabling interrupts.\n", name);
     }
@@ -272,6 +280,12 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *status)
 {
+    if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+        USLOSS_Console("join(): called while in user mode, by process %d."
+                       " Halting...\n", Current->pid);
+        USLOSS_Halt(1);
+    }
+    
     int childPID = -3;
     procPtr child;
     // Process has no children
@@ -320,13 +334,19 @@ int join(int *status)
    ------------------------------------------------------------------------ */
 void quit(int status)
 {
+    if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+        USLOSS_Console("quit(): called while in user mode, by process %d."
+                       " Halting...\n", Current->pid);
+        USLOSS_Halt(1);
+    }
+
     if (DEBUG && debugflag)
         USLOSS_Console("quit(): Quitting %s, status is %d.\n", 
                 Current->name, status);
 
     if (Current->childProcPtr != NULL) { // The process has an active child
-        if (DEBUG && debugflag)
-            USLOSS_Console("quit(): Halting  %s.\n", Current->name);
+        USLOSS_Console("quit(): process %d, '%s', has active children."
+                        " Halting...\n", Current->pid, Current->name);
         USLOSS_Halt(1);
     }
 
@@ -427,12 +447,19 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
-    for (int i = 0; i < MAXPROC; i++) {
-        if (ProcTable[i].status >= BLOCKED) { // process is blocked in any way
-            // TODO: think about Halt(1)
-            return;
+    if (ProcTable[0].status != EMPTY) {
+        USLOSS_Console("checkDeadLock(): numProc = %d. Only Sentinel"
+                       " should be left. Halting...\n", ProcTable[0].pid);
+        USLOSS_Halt(1);
+    }
+    for (int i = 2; i < MAXPROC; i++) {
+        if (ProcTable[i].status != EMPTY) { // process is blocked in any way
+            USLOSS_Console("checkDeadLock(): numProc = %d. Only Sentinel"
+                           " should be left. Halting...\n", ProcTable[i].pid);
+            USLOSS_Halt(1);
         }
     }
+
     USLOSS_Console("All processes completed.\n");
     USLOSS_Halt(0);
 } /* checkDeadlock */
@@ -679,15 +706,9 @@ void removeFromQuitList(procPtr process) {
 }
 
 void clock_handler() {
-    if (DEBUG && debugflag) {
-       USLOSS_Console("clock_handler(): inside clock handler.\n");
-    }
+    timeSlice();
 }
 
-int readTime() {
-    //int time = USLOSS_Clock();
-    return -1;
-}
 
 void addToQuitChildList(procPtr ptr) {
     if (ptr->quitChildPtr == NULL) {
@@ -703,4 +724,26 @@ void addToQuitChildList(procPtr ptr) {
 
 int getpid(){
     return Current->pid;
+}
+
+int readCurStartTime() {
+    return Current->startTime;
+}
+
+void timeSlice() {
+    if (readtime() >= TIME_SLICE) {
+        dispatcher();
+    }
+    return;
+}
+
+int readtime() {
+    return USLOSS_Clock() - readCurStartTime();
+}
+
+int isBlocked(int index) {
+    if (ProcTable[index].status > 7) {
+        return 1;
+    }
+    return 0;
 }

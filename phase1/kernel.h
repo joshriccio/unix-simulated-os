@@ -80,5 +80,6 @@ int getPsrPrevInteruptMode(int psrValue) {
 #define READY 1
 #define QUIT 4
 #define EMPTY 5
-#define BLOCKED 30
-#define JOIN_BLOCKED 31
+#define BLOCKED 8
+#define JOIN_BLOCKED 9
+#define ZAP_BLOCKED 10
