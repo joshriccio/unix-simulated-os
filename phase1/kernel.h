@@ -12,6 +12,8 @@ struct procStruct {
    procPtr         childProcPtr;
    procPtr         nextSiblingPtr;
    procPtr         parentPtr;
+   procPtr         quitChildPtr;  //TODO: init to NULL, fix in quit
+   procPtr         nextQuitSibling;  // TODO: init to NULL
    char            name[MAXNAME];     /* process's name */
    char            startArg[MAXARG];  /* args passed to process */
    USLOSS_Context  state;             /* current context for process */
@@ -22,6 +24,8 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    int             quitStatus;
+   int             startTime; // TODO: add to initProc
+   int             runTime;
    /* other fields as needed... */
 };
 
@@ -71,10 +75,11 @@ int getPsrPrevInteruptMode(int psrValue) {
 #define MAXPRIORITY 1
 #define SENTINELPID 1
 #define SENTINELPRIORITY (MINPRIORITY + 1)
+#define TIME_SLICE 80000
 
 //TODO Add more status contants
 #define READY 1
-#define BLOCKED 2
-#define JOIN_BLOCKED 3
 #define QUIT 4
 #define EMPTY 5
+#define BLOCKED 30
+#define JOIN_BLOCKED 31

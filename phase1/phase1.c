@@ -25,10 +25,15 @@ static void checkDeadlock();
 void addProcToReadyList(procPtr proc);
 void printReadyList();
 int getProcSlot();
-void initProcStruct(int index);
+void zeroProcStruct(int index);
 int allChildrenQuit(procPtr parent);
 procPtr firstChildWithStatus(procPtr parent, int status);
 void removeProcFromList(procPtr process);
+void clock_handler();
+int readTime();
+void disableInterrupts();
+void addToQuitChildList(procPtr ptr);
+int getpid();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -36,7 +41,6 @@ int debugflag = 1;
 
 // the process table
 procStruct ProcTable[MAXPROC];
-unsigned short currentPID = SENTINELPID; // last used pid
 
 // Process lists
 static procPtr ReadyList;
@@ -64,8 +68,8 @@ void startup()
     // initialize the process table
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing process table, ProcTable[]\n");
-    for (int i = 0; i < 50; i++) {
-        initProcStruct(i);
+    for (int i = 0; i < MAXPROC; i++) {
+        zeroProcStruct(i);
     }
 
     // Initialize the Ready list, etc.
@@ -74,6 +78,7 @@ void startup()
     ReadyList = NULL;
 
     // Initialize the clock interrupt handler
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
 
     // startup a sentinel process
     if (DEBUG && debugflag)
@@ -132,25 +137,23 @@ void finish()
 int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
+    // test if in kernel mode; halt if in user mode; disabling interrupts
+    if (DEBUG && debugflag) {
+        USLOSS_Console("fork1(): Process %s is disabling interrupts.\n", name);
+    }
+    disableInterrupts();
+
     int procSlot = -1;
 
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
-    // test if in kernel mode; halt if in user mode
-    if (USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE) {
-        if (DEBUG && debugflag) {
-            USLOSS_Console("fork1(): User %s is in kernal mode.\n", name);
-        }
-    } else {
-        if (DEBUG && debugflag) {
-            USLOSS_Console("fork1(): User %s is in user mode.\n", name);
-        }
-        USLOSS_Halt(1);
-    }
-
     // Return if stack size is too small
     if (stacksize < USLOSS_MIN_STACK) {
+        if (DEBUG && debugflag) {
+            USLOSS_Console("fork1(): Process %s stack size too small!\n", 
+                           name);
+        }
         return -2;
     }
 
@@ -164,19 +167,17 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         return -1;
     }
 
-    if (DEBUG && debugflag) {
-        USLOSS_Console("fork1(): Process %s PID equals %d.\n", 
-                       name, currentPID);
-    }
-
     // fill-in entry in process table
     if ( strlen(name) >= (MAXNAME - 1) ) {
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
         USLOSS_Halt(1);
     }
-    ProcTable[procSlot].pid = currentPID;
+    
+    // initializing procStruct in ProcTable
+    ProcTable[procSlot].pid = nextPid;
     strcpy(ProcTable[procSlot].name, name);
     ProcTable[procSlot].startFunc = startFunc; 
+    // check argument
     if (arg == NULL) {
         ProcTable[procSlot].startArg[0] = '\0';
     } else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -188,20 +189,20 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].stack = malloc(stacksize);
     ProcTable[procSlot].priority = priority;
+    // setting parent, child, and sibling pointers
     if (Current != NULL) { // Current is the parent process
         if (Current->childProcPtr == NULL) {  // Current has no children
             Current->childProcPtr = &ProcTable[procSlot];
         } else {  // Current has children
-            procPtr sibling = Current->childProcPtr->nextSiblingPtr;
-            if (sibling != NULL) { // Child of Current has siblings
-                while (sibling != NULL) { // Find last sibling of child
-                    sibling = sibling->nextSiblingPtr;
-                }
+            procPtr child = Current->childProcPtr;
+            while (child->nextSiblingPtr != NULL) { // Find last sibling in L 
+                child = child->nextSiblingPtr;
             }
-            sibling = &ProcTable[procSlot]; // Insert child at end of Sib List
+            // Insert child at end of Sib List
+            child->nextSiblingPtr = &ProcTable[procSlot]; 
         }
     } 
-    ProcTable[procSlot].parentPtr = Current; // Parent is NULL if Current is
+    ProcTable[procSlot].parentPtr = Current; // value could be NULL
     
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
@@ -213,11 +214,12 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     // for future phase(s)
     p1_fork(ProcTable[procSlot].pid);
 
-    //Add process to ready list
+    // Make process ready and add to ready list
     ProcTable[procSlot].status = READY;
     addProcToReadyList(&ProcTable[procSlot]);
 
-    currentPID++;  // increment for next process to start at this pid
+    nextPid++;  // increment for next process to start at this pid
+
     if (ProcTable[procSlot].pid != SENTINELPID) {
         dispatcher();
     }
@@ -269,7 +271,7 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *status)
 {
-    int childPID = -1;
+    int childPID = -3;
     procPtr child;
 
     if (Current->childProcPtr == NULL) { // Process has no children
@@ -279,8 +281,8 @@ int join(int *status)
         return -2;
     }
 
-    child = firstChildWithStatus(Current, QUIT);
-    if (child == NULL) { // Process has a child but without a status of quit
+    // Process has a child but without a status of quitldPtr;
+    if (Current->quitChildPtr == NULL) { 
         Current->status = JOIN_BLOCKED;
         ReadyList = ReadyList->nextProcPtr;
         if (DEBUG && debugflag) {
@@ -292,7 +294,7 @@ int join(int *status)
     }
 
     // A child has quit and reactivated the parent
-    child = firstChildWithStatus(Current, QUIT);
+    child = Current->quitChildPtr;
     if (DEBUG && debugflag) {
         USLOSS_Console("join(): Child %s has status of quit.\n", child->name);
         dumpProcesses();
@@ -300,35 +302,10 @@ int join(int *status)
     }
     childPID = child->pid;
     *status = child->quitStatus;
-    removeProcFromList(child);           
-    initProcStruct(childPID % MAXPROC);
+    removeProcFromList(child);
+    ProcTable[childPID % MAXPROC].status = EMPTY;           
+    //zeroProcStruct(childPID % MAXPROC);
     return childPID;
-
-    /*child = firstChildWithStatus(Current, QUIT);
-    if (child != NULL) { // Process has a child with a status of quit
-            USLOSS_Console("join(): Child %s has status of quit.\n", 
-                    child->name);
-            childPID = child->pid;
-            *status = child->quitStatus;
-            removeProcFromList(child);           
-            initProcStruct(childPID % MAXPROC);
-            return childPID;
-    } else { // Process does has a child but not with a status of quit
-        if (DEBUG && debugflag)
-            USLOSS_Console("join(): %s is JOIN_BLOCKED.\n", Current->name);
-        Current->status = JOIN_BLOCKED;
-        ReadyList = ReadyList->nextProcPtr;
-        printReadyList();
-        dispatcher();
-    }*/
-    // Code for removing child
-    /* 
-     * find first quit child
-     * save quit status
-     * remove process from table
-     * reassign sibling pointer
-     * if head, reassign parent child ptr
-     */
 } /* join */
 
 
@@ -352,16 +329,26 @@ void quit(int status)
             USLOSS_Console("quit(): Halting  %s.\n", Current->name);
         USLOSS_Halt(1);
     }
+
     Current->quitStatus = status;
     Current->status = QUIT;
+    ReadyList = ReadyList->nextProcPtr; // take off ready list
+    
+    // TODO: parent and child
+    // The process that is quitting is a child
     if (Current->parentPtr != NULL) {
         Current->parentPtr->status = READY;
+        addToQuitChildList(Current->parentPtr);
         addProcToReadyList(Current->parentPtr);
-    } else {
+    } else {  // process is a parent
+        // TODO: clean up quit children
         //ReadyList = ReadyList->nextProcPtr;
-        //initProcStruct(Current->pid % MAXPROC);
+        //zeroProcStruct(Current->pid % MAXPROC);
+        Current->status = EMPTY; //TODO: can probably use init cmd above
     }
     p1_quit(Current->pid);
+    if (DEBUG && debugflag)
+        dumpProcesses();
     dispatcher();
 } /* quit */
 
@@ -382,21 +369,28 @@ void dispatcher(void)
         USLOSS_Console("dispatcher(): started.\n");
 
     if (Current == NULL) { // Dispatcher called for first time
-       Current = ReadyList;
+        Current = ReadyList;
         if (DEBUG && debugflag)
             USLOSS_Console("dispatcher(): dispatching %s.\n", Current->name);
-       USLOSS_ContextSwitch(NULL, &Current->state);
+        Current->startTime = USLOSS_Clock();
+        // enable interrupts
+        USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
+        USLOSS_ContextSwitch(NULL, &Current->state);
     } else {
         procPtr old = Current;
         Current = ReadyList;
         if (DEBUG && debugflag)
             USLOSS_Console("dispatcher(): dispatching %s.\n", 
                     Current->name);
-       USLOSS_ContextSwitch(&old->state, &Current->state);
+        Current->startTime = USLOSS_Clock();
+        p1_switch(old->pid, Current->pid);
+        // enable interrupts
+        USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
+        USLOSS_ContextSwitch(&old->state, &Current->state);
     }
     if (DEBUG && debugflag){
-       USLOSS_Console("dispatcher(): Printing process table");
-       dumpProcesses();
+        USLOSS_Console("dispatcher(): Printing process table");
+        dumpProcesses();
     }
 } /* dispatcher */
 
@@ -419,6 +413,8 @@ int sentinel (char *dummy)
     while (1)
     {
         checkDeadlock();
+        if (DEBUG && debugflag)
+            USLOSS_Console("sentinel(): before WaitInt()\n");
         USLOSS_WaitInt();
     }
 } /* sentinel */
@@ -427,6 +423,14 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
+    for (int i = 0; i < MAXPROC; i++) {
+        if (ProcTable[i].status >= BLOCKED) { // process is blocked in any way
+            // TODO: think about Halt(1)
+            return;
+        }
+    }
+    USLOSS_Console("All processes completed.\n");
+    USLOSS_Halt(0);
 } /* checkDeadlock */
 
 
@@ -477,12 +481,13 @@ void addProcToReadyList(procPtr proc) {
         } else { // add proc before first greater priority
             procPtr next = ReadyList->nextProcPtr;
             procPtr last = ReadyList;
-            while (next->priority < proc->priority) {
+            while (next->priority <= proc->priority) {
                 last = next;
                 next = next->nextProcPtr;
             }
             last->nextProcPtr = proc;
             proc->nextProcPtr = next;
+        
         }
     }
 
@@ -506,15 +511,15 @@ void addProcToReadyList(procPtr proc) {
 |  Returns:  None
 *-------------------------------------------------------------------*/
 void printReadyList(){
-    char str[500], str1[25];
+    char str[10000], str1[40];
     
     procPtr head = ReadyList;
     
-    sprintf(str, "%s(%d)", head->name, head->priority);
+    sprintf(str, "%s(%d:PID=%d)", head->name, head->priority, head->pid);
 
     while (head->nextProcPtr != NULL) {
         head = head->nextProcPtr;
-        sprintf(str1, " -> %s(%d)", head->name, head->priority);
+        sprintf(str1, " -> %s(%d:PID=%d)", head->name, head->priority, head->pid);
         strcat(str, str1);
     }
 
@@ -534,11 +539,11 @@ void printReadyList(){
 |            empty slot in the process table.
 *-------------------------------------------------------------------*/
 int getProcSlot() {
-    int hashedIndex = currentPID % MAXPROC;
+    int hashedIndex = nextPid % MAXPROC;
     int counter = 0;
     while (ProcTable[hashedIndex].status != EMPTY) {
-        currentPID++;
-        hashedIndex = currentPID % MAXPROC;
+        nextPid++;
+        hashedIndex = nextPid % MAXPROC;
         if (counter >= MAXPROC) {
             return -1;
         }
@@ -547,8 +552,8 @@ int getProcSlot() {
     return hashedIndex;
 }
 
-/*---------------------------- initProcStruct -----------------------
-|  Function initProcStruct
+/*---------------------------- zeroProcStruct -----------------------
+|  Function zeroProcStruct
 |
 |  Purpose:  Initializes a ProcStruct. Members are set to 0 or NULL,
 |            except in the case of priority which is set to the highest
@@ -561,12 +566,12 @@ int getProcSlot() {
 |
 |  Side Effects:  The members of the ProcStruct at index are changed.
 *-------------------------------------------------------------------*/
-void initProcStruct(int index) {
+void zeroProcStruct(int index) {
 
-    ProcTable[index].pid = 0;
-    ProcTable[index].stackSize = 0;
+    ProcTable[index].pid = -1;
+    ProcTable[index].stackSize = -1;
     ProcTable[index].stack = NULL; 
-    ProcTable[index].priority = 5;
+    ProcTable[index].priority = -1;
     ProcTable[index].status = EMPTY;
     ProcTable[index].childProcPtr = NULL;
     ProcTable[index].nextSiblingPtr = NULL;
@@ -575,7 +580,7 @@ void initProcStruct(int index) {
     ProcTable[index].startArg[0] = '\0';
     ProcTable[index].startFunc = NULL;
     ProcTable[index].parentPtr = NULL;
-    ProcTable[index].quitStatus = 0;
+    ProcTable[index].quitStatus = -666;
 
 }
 
@@ -624,7 +629,7 @@ void dumpProcesses(){
                    break;
                case QUIT  : status = quit;
                    break;
-               default : status = "N/A";
+               default : sprintf(status, "%d", ProcTable[i].status);
            }
            if(ProcTable[i].parentPtr != NULL){
                parent = ProcTable[i].parentPtr->name;
@@ -645,8 +650,42 @@ void removeProcFromList(procPtr process) {
     } else { // process is in the middle or end of linked list
         procPtr temp = process->parentPtr->childProcPtr;
         while (temp->nextSiblingPtr != process) {
+            if (DEBUG && debugflag) {
+               USLOSS_Console("removeProcFromList(): temp: %s.\n", temp->pid);
+            }
             temp = temp->nextSiblingPtr;
         }
         temp->nextSiblingPtr = temp->nextSiblingPtr->nextSiblingPtr;
     }
+}
+
+void clock_handler() {
+    if (DEBUG && debugflag) {
+       USLOSS_Console("clock_handler(): inside clock handler.\n");
+    }
+    if (readTime() > TIME_SLICE) {
+        Current->runTime = 0;
+        dispatcher();
+    }
+}
+
+int readTime() {
+    int time = USLOSS_Clock();
+    return (time - Current->startTime) + Current->runTime;
+}
+
+void addToQuitChildList(procPtr ptr) {
+    if (ptr->quitChildPtr == NULL) {
+        ptr->quitChildPtr = Current;
+        return;
+    }
+    procPtr child = ptr->quitChildPtr;
+    while (child->nextQuitSibling != NULL) {
+        child = child->nextQuitSibling;
+    }
+    child->nextQuitSibling = Current;
+}
+
+int getpid(){
+    return Current->pid;
 }
