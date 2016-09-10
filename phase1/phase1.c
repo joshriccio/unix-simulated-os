@@ -302,8 +302,9 @@ int join(int *status)
     }
     childPID = child->pid;
     *status = child->quitStatus;
-    removeProcFromList(child);           
-    zeroProcStruct(childPID % MAXPROC);
+    removeProcFromList(child);
+    ProcTable[childPID % MAXPROC].status = EMPTY;           
+    //zeroProcStruct(childPID % MAXPROC);
     return childPID;
 } /* join */
 
