@@ -14,6 +14,8 @@ struct procStruct {
    procPtr         parentPtr;
    procPtr         quitChildPtr;
    procPtr         nextQuitSibling;
+   //procPtr         zapPtr;
+   procPtr         whoZapped;
    char            name[MAXNAME];     /* process's name */
    char            startArg[MAXARG];  /* args passed to process */
    USLOSS_Context  state;             /* current context for process */
@@ -25,6 +27,7 @@ struct procStruct {
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    int             quitStatus;
    int             startTime;
+   int             zapped;
    /* other fields as needed... */
 };
 

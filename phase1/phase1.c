@@ -38,6 +38,8 @@ int getpid();
 void timeSlice();
 int readCurStartTime();
 int isBlocked(int index);
+int zap(int pid);
+int isZapped();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -307,7 +309,10 @@ int join(int *status)
         }
         dispatcher();
     }
-
+    //Process was zapped while JOIN_BLOCKED 
+    if(isZapped()){
+        return -1;
+    }
     // A child has quit and reactivated the parent
     child = Current->quitChildPtr;
     if (DEBUG && debugflag) {
@@ -350,10 +355,15 @@ void quit(int status)
         USLOSS_Halt(1);
     }
 
+    if (isZapped()) {
+        Current->whoZapped->status = READY;
+        addProcToReadyList(Current->whoZapped);
+    }
+
     Current->quitStatus = status;
     Current->status = QUIT;
     ReadyList = ReadyList->nextProcPtr; // take off ready list
-    
+    int currentPID;
     // The process that is quitting is a child
     if (Current->parentPtr != NULL) {
         Current->parentPtr->status = READY;
@@ -366,16 +376,49 @@ void quit(int status)
             removeFromQuitList(Current->quitChildPtr);
             zeroProcStruct(childPID);
         }
-        //ReadyList = ReadyList->nextProcPtr;
-        //zeroProcStruct(Current->pid % MAXPROC);
-        Current->status = EMPTY; //TODO: can probably use init cmd above
+        currentPID = Current->pid;
+        zeroProcStruct(Current->pid);
     }
-    p1_quit(Current->pid);
+    p1_quit(currentPID);
     if (DEBUG && debugflag)
         dumpProcesses();
     dispatcher();
 } /* quit */
 
+// zap
+int zap(int pid) {
+    procPtr zapPtr;
+    if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+        USLOSS_Console("zap(): called while in user mode, by process %d."
+                       " Halting...\n", Current->pid);
+        USLOSS_Halt(1);
+    }
+    if(Current->pid == pid) {
+        USLOSS_Console("zap(): Process %d tried to zap self."
+                       " Halting...\n", pid);
+        USLOSS_Halt(1);
+    }
+    if (ProcTable[pid % MAXPROC].status == EMPTY || 
+            ProcTable[pid % MAXPROC].pid != pid) {
+
+        USLOSS_Console("zap(): Process %d does not exist. Halting...\n", pid);
+        USLOSS_Halt(1);
+    }
+    Current->status = ZAP_BLOCKED;
+    ReadyList = ReadyList->nextProcPtr;
+    zapPtr = &ProcTable[pid % MAXPROC];
+    zapPtr->zapped = 1;
+    zapPtr->whoZapped = Current;
+    dispatcher();
+    if (isZapped()) {
+        return -1;
+    }
+    return 0;
+}
+
+int isZapped() {
+    return Current->zapped;
+}
 
 /* ------------------------------------------------------------------------
    Name - dispatcher
@@ -610,12 +653,15 @@ void zeroProcStruct(int pid) {
     ProcTable[index].nextProcPtr = NULL;
     ProcTable[index].quitChildPtr = NULL;
     ProcTable[index].nextQuitSibling = NULL;
+    //ProcTable[index].zapPtr = NULL;
+    ProcTable[index].whoZapped = NULL;
     ProcTable[index].name[0] = '\0';
     ProcTable[index].startArg[0] = '\0';
     ProcTable[index].startFunc = NULL;
     ProcTable[index].parentPtr = NULL;
     ProcTable[index].quitStatus = -666;
     ProcTable[index].startTime = -1;
+    ProcTable[index].zapped = 0;
 
 }
 
