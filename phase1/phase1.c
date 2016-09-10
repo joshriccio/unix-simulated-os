@@ -33,10 +33,11 @@ void clock_handler();
 int readTime();
 void disableInterrupts();
 void addToQuitChildList(procPtr ptr);
+int getpid();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 0;
+int debugflag = 1;
 
 // the process table
 procStruct ProcTable[MAXPROC];
@@ -479,12 +480,13 @@ void addProcToReadyList(procPtr proc) {
         } else { // add proc before first greater priority
             procPtr next = ReadyList->nextProcPtr;
             procPtr last = ReadyList;
-            while (next->priority < proc->priority) {
+            while (next->priority <= proc->priority) {
                 last = next;
                 next = next->nextProcPtr;
             }
             last->nextProcPtr = proc;
             proc->nextProcPtr = next;
+        
         }
     }
 
@@ -508,15 +510,15 @@ void addProcToReadyList(procPtr proc) {
 |  Returns:  None
 *-------------------------------------------------------------------*/
 void printReadyList(){
-    char str[500], str1[25];
+    char str[10000], str1[40];
     
     procPtr head = ReadyList;
     
-    sprintf(str, "%s(%d)", head->name, head->priority);
+    sprintf(str, "%s(%d:PID=%d)", head->name, head->priority, head->pid);
 
     while (head->nextProcPtr != NULL) {
         head = head->nextProcPtr;
-        sprintf(str1, " -> %s(%d)", head->name, head->priority);
+        sprintf(str1, " -> %s(%d:PID=%d)", head->name, head->priority, head->pid);
         strcat(str, str1);
     }
 
@@ -626,7 +628,7 @@ void dumpProcesses(){
                    break;
                case QUIT  : status = quit;
                    break;
-               default : status = "N/A";
+               default : sprintf(status, "%d", ProcTable[i].status);
            }
            if(ProcTable[i].parentPtr != NULL){
                parent = ProcTable[i].parentPtr->name;
@@ -681,4 +683,8 @@ void addToQuitChildList(procPtr ptr) {
         child = child->nextQuitSibling;
     }
     child->nextQuitSibling = Current;
+}
+
+int getpid(){
+    return Current->pid;
 }
