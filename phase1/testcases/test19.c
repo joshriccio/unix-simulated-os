@@ -16,8 +16,11 @@ int start1(char *arg)
     USLOSS_Console("start1() started\n");
 
     pid1 = fork1("XXp2", XXp2, "XXp2", 20 * (USLOSS_MIN_STACK - 10), 2);
+    printf("start1(): created XXp2 with pid = %d\n", pid1);
 
-    join( &status );
+    printf("start1(): calling join\n");
+    pid1 = join( &status );
+    printf("start1(): join returned pid = %d, status = %d\n", pid1, status);
 
     quit(-1);
 
