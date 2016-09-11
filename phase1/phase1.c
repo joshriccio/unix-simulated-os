@@ -355,14 +355,15 @@ void quit(int status)
         USLOSS_Halt(1);
     }
 
+    Current->quitStatus = status;
+    Current->status = QUIT;
+    ReadyList = ReadyList->nextProcPtr; // take off ready list
+
     if (isZapped()) {
         Current->whoZapped->status = READY;
         addProcToReadyList(Current->whoZapped);
     }
 
-    Current->quitStatus = status;
-    Current->status = QUIT;
-    ReadyList = ReadyList->nextProcPtr; // take off ready list
     int currentPID;
     // The process that is quitting is a child
     if (Current->parentPtr != NULL) {
