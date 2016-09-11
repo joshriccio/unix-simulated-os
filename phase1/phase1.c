@@ -26,7 +26,6 @@ void addProcToReadyList(procPtr proc);
 void printReadyList();
 int getProcSlot();
 void zeroProcStruct(int pid);
-int allChildrenQuit(procPtr parent); // TODO: possibly remove
 procPtr firstChildWithStatus(procPtr parent, int status);
 void removeFromChildList(procPtr process);
 void removeFromQuitList(procPtr process);
@@ -696,19 +695,6 @@ void zeroProcStruct(int pid) {
     ProcTable[index].startTime = -1;
     ProcTable[index].zapped = 0;
 
-}
-
-int allChildrenQuit(procPtr parent) {
-    if (parent->childProcPtr != NULL) { // parent has a child
-        procPtr child = parent->childProcPtr;
-        while(child != NULL) {
-            if (child->status != QUIT) {
-                return 0;
-            }
-            child = child->nextSiblingPtr;
-        }
-    }
-    return 1;
 }
 
 procPtr firstChildWithStatus(procPtr parent, int status) {
