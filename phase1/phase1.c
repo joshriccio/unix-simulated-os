@@ -288,6 +288,11 @@ int join(int *status)
                        " Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
+    if (DEBUG && debugflag) {
+        USLOSS_Console("join(): Process %s is disabling interrupts.\n", 
+                       Current->name);
+    }
+    disableInterrupts();
     
     int childPID = -3;
     procPtr child;
@@ -310,10 +315,6 @@ int join(int *status)
         }
         dispatcher();
     }
-    //Process was zapped while JOIN_BLOCKED 
-    if(isZapped()){
-        return -1;
-    }
     // A child has quit and reactivated the parent
     child = Current->quitChildPtr;
     if (DEBUG && debugflag) {
@@ -325,6 +326,10 @@ int join(int *status)
     *status = child->quitStatus;
     removeFromQuitList(child);
     zeroProcStruct(childPID);
+    //Process was zapped while JOIN_BLOCKED 
+    if(isZapped()){
+        return -1;
+    }
     return childPID;
 } /* join */
 
@@ -345,6 +350,11 @@ void quit(int status)
                        " Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
+    if (DEBUG && debugflag) {
+        USLOSS_Console("quit(): Process %s is disabling interrupts.\n", 
+                       Current->name);
+    }
+    disableInterrupts();
 
     if (DEBUG && debugflag)
         USLOSS_Console("quit(): Quitting %s, status is %d.\n", 
@@ -361,8 +371,12 @@ void quit(int status)
     ReadyList = ReadyList->nextProcPtr; // take off ready list
 
     if (isZapped()) {
-        Current->whoZapped->status = READY;
-        addProcToReadyList(Current->whoZapped);
+        procPtr ptr = Current->whoZapped;
+        while (ptr != NULL) {
+            ptr->status = READY;
+            addProcToReadyList(ptr);
+            ptr = ptr->nextWhoZapped;
+        }
     }
 
     int currentPID;
@@ -396,6 +410,12 @@ int zap(int pid) {
                        " Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
+    if (DEBUG && debugflag) {
+        USLOSS_Console("zap(): Process %s is disabling interrupts.\n", 
+                       Current->name);
+    }
+    disableInterrupts();
+
     if(Current->pid == pid) {
         USLOSS_Console("zap(): Process %d tried to zap self."
                        " Halting...\n", pid);
@@ -414,7 +434,13 @@ int zap(int pid) {
     ReadyList = ReadyList->nextProcPtr;
     zapPtr = &ProcTable[pid % MAXPROC];
     zapPtr->zapped = 1;
-    zapPtr->whoZapped = Current;
+    if (zapPtr->whoZapped == NULL) {
+        zapPtr->whoZapped = Current;
+    } else {
+        procPtr ptr = zapPtr->whoZapped;
+        zapPtr->whoZapped = Current;
+        zapPtr->whoZapped->nextWhoZapped = ptr;
+    }
     dispatcher();
     if (isZapped()) {
         return -1;
@@ -497,13 +523,13 @@ int sentinel (char *dummy)
 static void checkDeadlock()
 {
     if (ProcTable[0].status != EMPTY) {
-        USLOSS_Console("checkDeadLock(): numProc = %d. Only Sentinel"
+        USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
                        " should be left. Halting...\n", ProcTable[0].pid);
         USLOSS_Halt(1);
     }
     for (int i = 2; i < MAXPROC; i++) {
         if (ProcTable[i].status != EMPTY) { // process is blocked in any way
-            USLOSS_Console("checkDeadLock(): numProc = %d. Only Sentinel"
+            USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
                            " should be left. Halting...\n", ProcTable[i].pid);
             USLOSS_Halt(1);
         }
@@ -661,6 +687,7 @@ void zeroProcStruct(int pid) {
     ProcTable[index].nextQuitSibling = NULL;
     //ProcTable[index].zapPtr = NULL;
     ProcTable[index].whoZapped = NULL;
+    ProcTable[index].nextWhoZapped = NULL;
     ProcTable[index].name[0] = '\0';
     ProcTable[index].startArg[0] = '\0';
     ProcTable[index].startFunc = NULL;
@@ -805,13 +832,30 @@ int isBlocked(int index) {
 }
 
 int blockMe(int newStatus){
-    if(newStatus < 10){
-      //print error message
+    if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+        USLOSS_Console("blockMe(): called while in user mode, by process %d."
+                       " Halting...\n", Current->pid);
+        USLOSS_Halt(1);
+    }
+    if (DEBUG && debugflag) {
+        USLOSS_Console("blockMe(): Process %s is disabling interrupts.\n", 
+                       Current->name);
+    }
+    disableInterrupts();
+
+    if(newStatus < 11){
+        USLOSS_Console("blockMe(): called with invalid status of %d."
+                       " Halting...\n", newStatus);
+        USLOSS_Halt(1);
       USLOSS_Halt(1);
     }
     Current->status = newStatus;
-    //Remove from ready list
+    ReadyList = ReadyList->nextProcPtr; // Remove from ReadyList
     dispatcher();
+    if (DEBUG && debugflag) {
+        USLOSS_Console("blockMe(): Process %s is unblocked.\n", 
+                       Current->name);
+    }
     if(isZapped()){
       return -1;
     }
@@ -819,6 +863,20 @@ int blockMe(int newStatus){
 }
 
 int unblockProc(int pid){
-return 0;
+    if (ProcTable[pid % MAXPROC].pid != pid) {
+        return -2;
+    }
+    if (Current->pid == pid) {
+        return -2;
+    }
+    if (ProcTable[pid % MAXPROC].status < 11) {
+        return -2;
+    }
+    if (isZapped()) {
+        return -1;
+    }
+    ProcTable[pid % MAXPROC].status = READY;
+    addProcToReadyList(&ProcTable[pid % MAXPROC]);
+    dispatcher();
+    return 0;
 }
-
