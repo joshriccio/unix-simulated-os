@@ -315,10 +315,6 @@ int join(int *status)
         }
         dispatcher();
     }
-    //Process was zapped while JOIN_BLOCKED 
-    if(isZapped()){
-        return -1;
-    }
     // A child has quit and reactivated the parent
     child = Current->quitChildPtr;
     if (DEBUG && debugflag) {
@@ -330,6 +326,10 @@ int join(int *status)
     *status = child->quitStatus;
     removeFromQuitList(child);
     zeroProcStruct(childPID);
+    //Process was zapped while JOIN_BLOCKED 
+    if(isZapped()){
+        return -1;
+    }
     return childPID;
 } /* join */
 
@@ -371,8 +371,12 @@ void quit(int status)
     ReadyList = ReadyList->nextProcPtr; // take off ready list
 
     if (isZapped()) {
-        Current->whoZapped->status = READY;
-        addProcToReadyList(Current->whoZapped);
+        procPtr ptr = Current->whoZapped;
+        while (ptr != NULL) {
+            ptr->status = READY;
+            addProcToReadyList(ptr);
+            ptr = ptr->nextWhoZapped;
+        }
     }
 
     int currentPID;
@@ -430,7 +434,13 @@ int zap(int pid) {
     ReadyList = ReadyList->nextProcPtr;
     zapPtr = &ProcTable[pid % MAXPROC];
     zapPtr->zapped = 1;
-    zapPtr->whoZapped = Current;
+    if (zapPtr->whoZapped == NULL) {
+        zapPtr->whoZapped = Current;
+    } else {
+        procPtr ptr = zapPtr->whoZapped;
+        zapPtr->whoZapped = Current;
+        zapPtr->whoZapped->nextWhoZapped = ptr;
+    }
     dispatcher();
     if (isZapped()) {
         return -1;
@@ -677,6 +687,7 @@ void zeroProcStruct(int pid) {
     ProcTable[index].nextQuitSibling = NULL;
     //ProcTable[index].zapPtr = NULL;
     ProcTable[index].whoZapped = NULL;
+    ProcTable[index].nextWhoZapped = NULL;
     ProcTable[index].name[0] = '\0';
     ProcTable[index].startArg[0] = '\0';
     ProcTable[index].startFunc = NULL;

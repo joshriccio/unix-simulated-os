@@ -16,6 +16,7 @@ struct procStruct {
    procPtr         nextQuitSibling;
    //procPtr         zapPtr;
    procPtr         whoZapped;
+   procPtr         nextWhoZapped;
    char            name[MAXNAME];     /* process's name */
    char            startArg[MAXARG];  /* args passed to process */
    USLOSS_Context  state;             /* current context for process */
