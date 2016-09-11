@@ -159,6 +159,15 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
+    // Return if priority is out of bounds
+    if (priority > MINPRIORITY || priority < MAXPRIORITY) {
+        if (DEBUG && debugflag) {
+            USLOSS_Console("fork1(): Process %s priority is out of bounds!\n", 
+                           name);
+        }
+        return -1;
+    }
+
     // Return if stack size is too small
     if (stacksize < USLOSS_MIN_STACK) {
         if (DEBUG && debugflag) {
@@ -416,7 +425,7 @@ int zap(int pid) {
     disableInterrupts();
 
     if(Current->pid == pid) {
-        USLOSS_Console("zap(): Process %d tried to zap self."
+        USLOSS_Console("zap(): process %d tried to zap itself."
                        " Halting...\n", pid);
         USLOSS_Halt(1);
     }
