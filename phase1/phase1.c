@@ -40,6 +40,7 @@ int readCurStartTime();
 int isBlocked(int index);
 int zap(int pid);
 int isZapped();
+void removeFromReadyList(procPtr process);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -355,6 +356,7 @@ void quit(int status)
         USLOSS_Halt(1);
     }
 
+    ReadyList = ReadyList->nextProcPtr; // take off ready list
     if (isZapped()) {
         Current->whoZapped->status = READY;
         addProcToReadyList(Current->whoZapped);
@@ -362,7 +364,7 @@ void quit(int status)
 
     Current->quitStatus = status;
     Current->status = QUIT;
-    ReadyList = ReadyList->nextProcPtr; // take off ready list
+    
     int currentPID;
     // The process that is quitting is a child
     if (Current->parentPtr != NULL) {
@@ -370,6 +372,7 @@ void quit(int status)
         addToQuitChildList(Current->parentPtr);
         removeFromChildList(Current);
         addProcToReadyList(Current->parentPtr);
+        printReadyList();
     } else {  // process is a parent
         while (Current->quitChildPtr != NULL) {
             int childPID = Current->quitChildPtr->pid;
@@ -404,6 +407,9 @@ int zap(int pid) {
         USLOSS_Console("zap(): Process %d does not exist. Halting...\n", pid);
         USLOSS_Halt(1);
     }
+    if (DEBUG && debugflag)
+        USLOSS_Console("zap(): Process %d is zapping process %d.\n",
+                Current->pid, pid);
     Current->status = ZAP_BLOCKED;
     ReadyList = ReadyList->nextProcPtr;
     zapPtr = &ProcTable[pid % MAXPROC];
@@ -696,9 +702,11 @@ void dumpProcesses(){
     char *blocked = "BLOCKED";
     char *join_blocked = "JOIN_BLOCKED";
     char *quit = "QUIT";
-    USLOSS_Console("\n     PID       Name   Priority     Status     Parent\n");
+    char *zap_blocked = "ZAP_BLOCKED";
+    USLOSS_Console("\n     PID       Name   Priority        Status     Parent\n");
     for(int i=0; i<50; i++){
-        char *status;
+        char buf[30];
+        char *status = buf;
         char *parent;
         if(ProcTable[i].status != EMPTY){
            switch(ProcTable[i].status) {
@@ -709,6 +717,8 @@ void dumpProcesses(){
                case JOIN_BLOCKED : status = join_blocked;
                    break;
                case QUIT  : status = quit;
+                   break;               
+               case ZAP_BLOCKED  : status = zap_blocked;
                    break;
                default : sprintf(status, "%d", ProcTable[i].status);
            }
@@ -717,7 +727,7 @@ void dumpProcesses(){
            }else{
                parent = "NULL";
            }
-           USLOSS_Console("%8d %10s %10d %10s %10s\n", ProcTable[i].pid, 
+           USLOSS_Console("%8d %10s %10d %13s %10s\n", ProcTable[i].pid, 
                           ProcTable[i].name, ProcTable[i].priority, 
                           status, parent); 
         }
@@ -793,3 +803,22 @@ int isBlocked(int index) {
     }
     return 0;
 }
+
+int blockMe(int newStatus){
+    if(newStatus < 10){
+      //print error message
+      USLOSS_Halt(1);
+    }
+    Current->status = newStatus;
+    //Remove from ready list
+    dispatcher();
+    if(isZapped()){
+      return -1;
+    }
+    return 0;
+}
+
+int unblockProc(int pid){
+return 0;
+}
+

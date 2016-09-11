@@ -46,12 +46,10 @@ union psrValues {
 
 // TODO: Untested bits
 /*int psrInit(struct psrBits * psr_bits, unsigned int psrValue) {
-
     psr_bits->curMode = psrValue & 1;
     psr_bits->curIntEnable = psrValue & 2;
     psr_bits->prevMode = psrValue & 4;
     psr_bits->prevIntEnable = psrValue & 8;
-
     return 0;
 }*/
 
