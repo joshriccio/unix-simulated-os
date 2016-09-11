@@ -820,3 +820,23 @@ int isBlocked(int index) {
     }
     return 0;
 }
+
+int blockMe(int newStatus){
+    if(newStatus < 10){
+      //print error message
+      USLOSS_HALT(1);
+    }
+    Current->status = newStatus;
+    //Remove from ready list
+    dispatcher();
+    if(isZapped()){
+      return -1;
+    }
+    return 0;
+}
+
+int unblockProc(int pid){
+
+
+}
+
