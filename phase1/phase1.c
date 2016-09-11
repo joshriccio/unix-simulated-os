@@ -824,7 +824,7 @@ int isBlocked(int index) {
 int blockMe(int newStatus){
     if(newStatus < 10){
       //print error message
-      USLOSS_HALT(1);
+      USLOSS_Halt(1);
     }
     Current->status = newStatus;
     //Remove from ready list
@@ -836,7 +836,6 @@ int blockMe(int newStatus){
 }
 
 int unblockProc(int pid){
-
-
+return 0;
 }
 

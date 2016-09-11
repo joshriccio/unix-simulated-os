@@ -1,0 +1,4 @@
+start1() started
+-2 returned, which is correct!
+-2 returned, which is correct!
+All processes completed.
