@@ -356,6 +356,7 @@ void quit(int status)
         USLOSS_Halt(1);
     }
 
+    ReadyList = ReadyList->nextProcPtr; // take off ready list
     if (isZapped()) {
         Current->whoZapped->status = READY;
         addProcToReadyList(Current->whoZapped);
@@ -363,8 +364,7 @@ void quit(int status)
 
     Current->quitStatus = status;
     Current->status = QUIT;
-    removeFromReadyList(Current);
-    //ReadyList = ReadyList->nextProcPtr; // take off ready list
+    
     int currentPID;
     // The process that is quitting is a child
     if (Current->parentPtr != NULL) {
@@ -760,23 +760,6 @@ void removeFromQuitList(procPtr process) {
                       process->pid);
     }
 }
-
-void removeFromReadyList(procPtr process) {
-    if(process == ReadyList){
-       ReadyList = ReadyList->nextProcPtr;
-    }else{
-       procPtr proc = ReadyList;
-       while(proc->nextProcPtr != process){
-          proc = proc->nextProcPtr;
-       }
-       proc->nextProcPtr = proc->nextProcPtr->nextProcPtr;
-    }
-    if (DEBUG && debugflag) {
-       USLOSS_Console("removeFromReadyList(): Process %d removed from ReadyList.\n",
-                      process->pid);
-    }
-}
-
 
 void clock_handler() {
     timeSlice();
