@@ -43,7 +43,7 @@ int isZapped();
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 0;
+int debugflag = 1;
 
 // the process table
 procStruct ProcTable[MAXPROC];
@@ -404,7 +404,12 @@ int zap(int pid) {
         USLOSS_Console("zap(): Process %d does not exist. Halting...\n", pid);
         USLOSS_Halt(1);
     }
+    if (DEBUG && debugflag)
+        USLOSS_Console("zap(): Process %d is zapping process %d.\n",
+                Current->pid, pid);
+    dumpProcesses();
     Current->status = ZAP_BLOCKED;
+    dumpProcesses();
     ReadyList = ReadyList->nextProcPtr;
     zapPtr = &ProcTable[pid % MAXPROC];
     zapPtr->zapped = 1;
@@ -696,9 +701,11 @@ void dumpProcesses(){
     char *blocked = "BLOCKED";
     char *join_blocked = "JOIN_BLOCKED";
     char *quit = "QUIT";
-    USLOSS_Console("\n     PID       Name   Priority     Status     Parent\n");
+    char *zap_blocked = "ZAP_BLOCKED";
+    USLOSS_Console("\n     PID       Name   Priority        Status     Parent\n");
     for(int i=0; i<50; i++){
-        char *status;
+        char buf[30];
+        char *status = buf;
         char *parent;
         if(ProcTable[i].status != EMPTY){
            switch(ProcTable[i].status) {
@@ -709,6 +716,8 @@ void dumpProcesses(){
                case JOIN_BLOCKED : status = join_blocked;
                    break;
                case QUIT  : status = quit;
+                   break;               
+               case ZAP_BLOCKED  : status = zap_blocked;
                    break;
                default : sprintf(status, "%d", ProcTable[i].status);
            }
@@ -717,7 +726,7 @@ void dumpProcesses(){
            }else{
                parent = "NULL";
            }
-           USLOSS_Console("%8d %10s %10d %10s %10s\n", ProcTable[i].pid, 
+           USLOSS_Console("%8d %10s %10d %13s %10s\n", ProcTable[i].pid, 
                           ProcTable[i].name, ProcTable[i].priority, 
                           status, parent); 
         }
