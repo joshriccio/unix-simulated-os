@@ -160,7 +160,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     // Return if priority is out of bounds
-    if (priority > MINPRIORITY || priority < MAXPRIORITY) {
+    if ((nextPid != SENTINELPID) && (priority > MINPRIORITY || 
+                              priority < MAXPRIORITY)) {
         if (DEBUG && debugflag) {
             USLOSS_Console("fork1(): Process %s priority is out of bounds!\n", 
                            name);
@@ -389,7 +390,23 @@ void quit(int status)
 
     int currentPID;
     // The process that is quitting is a child
-    if (Current->parentPtr != NULL) {
+    if (Current->parentPtr != NULL && Current->quitChildPtr != NULL) {
+        // parent code
+        while (Current->quitChildPtr != NULL) {
+            int childPID = Current->quitChildPtr->pid;
+            removeFromQuitList(Current->quitChildPtr);
+            zeroProcStruct(childPID);
+        }
+        // child code
+        Current->parentPtr->status = READY;
+        addToQuitChildList(Current->parentPtr);
+        removeFromChildList(Current);
+        addProcToReadyList(Current->parentPtr);
+        printReadyList();
+        currentPID = Current->pid;
+        //zeroProcStruct(Current->pid);
+
+    } else if (Current->parentPtr != NULL) {
         Current->parentPtr->status = READY;
         addToQuitChildList(Current->parentPtr);
         removeFromChildList(Current);
@@ -426,13 +443,14 @@ int zap(int pid) {
 
     if(Current->pid == pid) {
         USLOSS_Console("zap(): process %d tried to zap itself."
-                       " Halting...\n", pid);
+                       "  Halting...\n", pid);
         USLOSS_Halt(1);
     }
     if (ProcTable[pid % MAXPROC].status == EMPTY || 
             ProcTable[pid % MAXPROC].pid != pid) {
 
-        USLOSS_Console("zap(): Process %d does not exist. Halting...\n", pid);
+        USLOSS_Console("zap(): process being zapped does not exist."
+                       "  Halting...\n");
         USLOSS_Halt(1);
     }
     if (DEBUG && debugflag)
