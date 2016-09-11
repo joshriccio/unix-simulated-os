@@ -40,10 +40,11 @@ int readCurStartTime();
 int isBlocked(int index);
 int zap(int pid);
 int isZapped();
+void removeFromReadyList(procPtr process);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
-int debugflag = 1;
+int debugflag = 0;
 
 // the process table
 procStruct ProcTable[MAXPROC];
@@ -362,7 +363,8 @@ void quit(int status)
 
     Current->quitStatus = status;
     Current->status = QUIT;
-    ReadyList = ReadyList->nextProcPtr; // take off ready list
+    removeFromReadyList(Current);
+    //ReadyList = ReadyList->nextProcPtr; // take off ready list
     int currentPID;
     // The process that is quitting is a child
     if (Current->parentPtr != NULL) {
@@ -370,6 +372,7 @@ void quit(int status)
         addToQuitChildList(Current->parentPtr);
         removeFromChildList(Current);
         addProcToReadyList(Current->parentPtr);
+        printReadyList();
     } else {  // process is a parent
         while (Current->quitChildPtr != NULL) {
             int childPID = Current->quitChildPtr->pid;
@@ -407,9 +410,7 @@ int zap(int pid) {
     if (DEBUG && debugflag)
         USLOSS_Console("zap(): Process %d is zapping process %d.\n",
                 Current->pid, pid);
-    dumpProcesses();
     Current->status = ZAP_BLOCKED;
-    dumpProcesses();
     ReadyList = ReadyList->nextProcPtr;
     zapPtr = &ProcTable[pid % MAXPROC];
     zapPtr->zapped = 1;
@@ -759,6 +760,23 @@ void removeFromQuitList(procPtr process) {
                       process->pid);
     }
 }
+
+void removeFromReadyList(procPtr process) {
+    if(process == ReadyList){
+       ReadyList = ReadyList->nextProcPtr;
+    }else{
+       procPtr proc = ReadyList;
+       while(proc->nextProcPtr != process){
+          proc = proc->nextProcPtr;
+       }
+       proc->nextProcPtr = proc->nextProcPtr->nextProcPtr;
+    }
+    if (DEBUG && debugflag) {
+       USLOSS_Console("removeFromReadyList(): Process %d removed from ReadyList.\n",
+                      process->pid);
+    }
+}
+
 
 void clock_handler() {
     timeSlice();
