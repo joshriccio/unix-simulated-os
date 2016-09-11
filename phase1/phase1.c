@@ -453,6 +453,12 @@ int zap(int pid) {
                        "  Halting...\n");
         USLOSS_Halt(1);
     }
+    //Added do to test34 restrictions
+    if (ProcTable[pid % MAXPROC].status == QUIT) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("zap(): process being zapped has quit but not joined.\n");
+        return 0;
+    }
     if (DEBUG && debugflag)
         USLOSS_Console("zap(): Process %d is zapping process %d.\n",
                 Current->pid, pid);
