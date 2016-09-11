@@ -10,8 +10,8 @@ do
     fi
 
     echo "----------- test0$number -----------"
-    make $(echo "test$number") 
-    echo
+#   make $(echo "test$number") 
+#   echo
     ./$(echo "test$number") &> diffTests/$(echo "test$number""diff")
     echo
     diff $(echo "diffTests/test$number""diff") $(echo "testResults/test$number"".txt")
