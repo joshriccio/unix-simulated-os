@@ -559,19 +559,17 @@ int sentinel (char *dummy)
 
 
 /* check to determine if deadlock has occurred... */
-static void checkDeadlock()
-{
-    if (ProcTable[0].status != EMPTY) {
-        USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
-                       " should be left. Halting...\n", ProcTable[0].pid);
-        USLOSS_Halt(1);
-    }
-    for (int i = 2; i < MAXPROC; i++) {
+static void checkDeadlock(){
+    int numProc = 0;
+    for (int i = 0; i < MAXPROC; i++) {
         if (ProcTable[i].status != EMPTY) { // process is blocked in any way
-            USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
-                           " should be left. Halting...\n", ProcTable[i].pid);
-            USLOSS_Halt(1);
+            numProc++;
         }
+    }
+    if(numProc > 1){
+        USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
+                       " should be left. Halting...\n", numProc);
+        USLOSS_Halt(1);
     }
 
     USLOSS_Console("All processes completed.\n");
