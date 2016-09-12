@@ -399,18 +399,20 @@ void quit(int status)
         }
         // child code
         Current->parentPtr->status = READY;
-        addToQuitChildList(Current->parentPtr);
         removeFromChildList(Current);
+        addToQuitChildList(Current->parentPtr);
         addProcToReadyList(Current->parentPtr);
         printReadyList();
         currentPID = Current->pid;
         //zeroProcStruct(Current->pid);
 
     } else if (Current->parentPtr != NULL) {
-        Current->parentPtr->status = READY;
         addToQuitChildList(Current->parentPtr);
         removeFromChildList(Current);
-        addProcToReadyList(Current->parentPtr);
+        if(Current->parentPtr->status == JOIN_BLOCKED){
+           addProcToReadyList(Current->parentPtr);
+           Current->parentPtr->status = READY;
+        }
         printReadyList();
     } else {  // process is a parent
         while (Current->quitChildPtr != NULL) {
@@ -453,11 +455,16 @@ int zap(int pid) {
                        "  Halting...\n");
         USLOSS_Halt(1);
     }
+   
     //Added do to test34 restrictions
     if (ProcTable[pid % MAXPROC].status == QUIT) {
         if (DEBUG && debugflag)
             USLOSS_Console("zap(): process being zapped has quit but not joined.\n");
-        return 0;
+        //Added because of test35 restrictions
+        if (isZapped()) {
+            return -1;
+        }   
+     return 0;
     }
     if (DEBUG && debugflag)
         USLOSS_Console("zap(): Process %d is zapping process %d.\n",
@@ -625,7 +632,6 @@ void addProcToReadyList(procPtr proc) {
             }
             last->nextProcPtr = proc;
             proc->nextProcPtr = next;
-        
         }
     }
 
