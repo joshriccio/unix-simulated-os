@@ -399,18 +399,20 @@ void quit(int status)
         }
         // child code
         Current->parentPtr->status = READY;
-        addToQuitChildList(Current->parentPtr);
         removeFromChildList(Current);
+        addToQuitChildList(Current->parentPtr);
         addProcToReadyList(Current->parentPtr);
         printReadyList();
         currentPID = Current->pid;
         //zeroProcStruct(Current->pid);
 
     } else if (Current->parentPtr != NULL) {
-        Current->parentPtr->status = READY;
         addToQuitChildList(Current->parentPtr);
         removeFromChildList(Current);
-        addProcToReadyList(Current->parentPtr);
+        if(Current->parentPtr->status == JOIN_BLOCKED){
+           addProcToReadyList(Current->parentPtr);
+           Current->parentPtr->status = READY;
+        }
         printReadyList();
     } else {  // process is a parent
         while (Current->quitChildPtr != NULL) {
@@ -452,6 +454,17 @@ int zap(int pid) {
         USLOSS_Console("zap(): process being zapped does not exist."
                        "  Halting...\n");
         USLOSS_Halt(1);
+    }
+   
+    //Added do to test34 restrictions
+    if (ProcTable[pid % MAXPROC].status == QUIT) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("zap(): process being zapped has quit but not joined.\n");
+        //Added because of test35 restrictions
+        if (isZapped()) {
+            return -1;
+        }   
+     return 0;
     }
     if (DEBUG && debugflag)
         USLOSS_Console("zap(): Process %d is zapping process %d.\n",
@@ -546,19 +559,17 @@ int sentinel (char *dummy)
 
 
 /* check to determine if deadlock has occurred... */
-static void checkDeadlock()
-{
-    if (ProcTable[0].status != EMPTY) {
-        USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
-                       " should be left. Halting...\n", ProcTable[0].pid);
-        USLOSS_Halt(1);
-    }
-    for (int i = 2; i < MAXPROC; i++) {
+static void checkDeadlock(){
+    int numProc = 0;
+    for (int i = 0; i < MAXPROC; i++) {
         if (ProcTable[i].status != EMPTY) { // process is blocked in any way
-            USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
-                           " should be left. Halting...\n", ProcTable[i].pid);
-            USLOSS_Halt(1);
+            numProc++;
         }
+    }
+    if(numProc > 1){
+        USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
+                       " should be left. Halting...\n", numProc);
+        USLOSS_Halt(1);
     }
 
     USLOSS_Console("All processes completed.\n");
@@ -619,7 +630,6 @@ void addProcToReadyList(procPtr proc) {
             }
             last->nextProcPtr = proc;
             proc->nextProcPtr = next;
-        
         }
     }
 
