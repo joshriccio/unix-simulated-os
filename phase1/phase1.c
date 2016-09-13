@@ -516,8 +516,12 @@ void dispatcher(void)
         USLOSS_ContextSwitch(NULL, &Current->state);
     } else {
         procPtr old = Current;
+        if (old->status == RUNNING) {
+            old->status = READY;
+        }
         Current = ReadyList;
         removeFromReadyList(Current);
+        Current->status = RUNNING;
         addProcToReadyList(Current);
         if (DEBUG && debugflag)
             USLOSS_Console("dispatcher(): dispatching %s.\n", 
@@ -751,6 +755,7 @@ procPtr firstChildWithStatus(procPtr parent, int status) {
 
 void dumpProcesses(){
     char *ready = "READY";
+    char *running = "RUNNING";
     char *blocked = "BLOCKED";
     char *join_blocked = "JOIN_BLOCKED";
     char *quit = "QUIT";
@@ -764,7 +769,9 @@ void dumpProcesses(){
            switch(ProcTable[i].status) {
                case READY : status = ready;
                    break;
-	       case BLOCKED  : status = blocked;
+               case RUNNING : status = running;
+                   break;
+               case BLOCKED  : status = blocked;
                    break;
                case JOIN_BLOCKED : status = join_blocked;
                    break;
