@@ -80,6 +80,7 @@ int getPsrPrevInteruptMode(int psrValue) {
 
 //TODO Add more status contants
 #define READY 1
+#define RUNNING 2
 #define QUIT 4
 #define EMPTY 5
 #define BLOCKED 8

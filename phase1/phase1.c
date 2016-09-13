@@ -241,7 +241,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     nextPid++;  // increment for next process to start at this pid
 
-    if (ProcTable[procSlot].pid != SENTINELPID) {
+    if (ProcTable[procSlot].pid != SENTINELPID) { // sentinel does not call
         dispatcher();
     }
 
@@ -316,7 +316,7 @@ int join(int *status)
     // Process has a child but without a status of quitldPtr;
     if (Current->quitChildPtr == NULL) { 
         Current->status = JOIN_BLOCKED;
-        ReadyList = ReadyList->nextProcPtr;
+        removeFromReadyList(Current);
         if (DEBUG && debugflag) {
             USLOSS_Console("join(): %s is JOIN_BLOCKED.\n", Current->name);
             dumpProcesses();
@@ -377,7 +377,7 @@ void quit(int status)
 
     Current->quitStatus = status;
     Current->status = QUIT;
-    ReadyList = ReadyList->nextProcPtr; // take off ready list
+    removeFromReadyList(Current);
 
     if (isZapped()) {
         procPtr ptr = Current->whoZapped;
@@ -470,7 +470,7 @@ int zap(int pid) {
         USLOSS_Console("zap(): Process %d is zapping process %d.\n",
                 Current->pid, pid);
     Current->status = ZAP_BLOCKED;
-    ReadyList = ReadyList->nextProcPtr;
+    removeFromReadyList(Current);
     zapPtr = &ProcTable[pid % MAXPROC];
     zapPtr->zapped = 1;
     if (zapPtr->whoZapped == NULL) {
@@ -517,6 +517,8 @@ void dispatcher(void)
     } else {
         procPtr old = Current;
         Current = ReadyList;
+        removeFromReadyList(Current);
+        addProcToReadyList(Current);
         if (DEBUG && debugflag)
             USLOSS_Console("dispatcher(): dispatching %s.\n", 
                     Current->name);
@@ -873,7 +875,7 @@ int blockMe(int newStatus){
       USLOSS_Halt(1);
     }
     Current->status = newStatus;
-    ReadyList = ReadyList->nextProcPtr; // Remove from ReadyList
+    removeFromReadyList(Current);
     dispatcher();
     if (DEBUG && debugflag) {
         USLOSS_Console("blockMe(): Process %s is unblocked.\n", 
@@ -902,4 +904,20 @@ int unblockProc(int pid){
     addProcToReadyList(&ProcTable[pid % MAXPROC]);
     dispatcher();
     return 0;
+}
+
+void removeFromReadyList(procPtr process) {
+    if(process == ReadyList){
+        ReadyList = ReadyList->nextProcPtr;
+    }else{
+        procPtr proc = ReadyList;
+        while(proc->nextProcPtr != process){
+            proc = proc->nextProcPtr;
+        }
+        proc->nextProcPtr = proc->nextProcPtr->nextProcPtr;
+    }
+    if (DEBUG && debugflag) {
+        USLOSS_Console("removeFromReadyList(): Process %d removed from"
+                       " ReadyList.\n", process->pid);
+    }
 }
