@@ -641,7 +641,8 @@ void disableInterrupts()
 |
 |  Purpose:  Adds a new process to the ready list. Process is added to 
 |            the list based on priority. Lower priorities are placed at
-|            the front of the list.
+|            the front of the list. A process is placed at the end of
+|            all processes with the same pritority.
 |
 |  Parameters:  proc (IN) -- The process to be added to the ready list.
 |
@@ -650,21 +651,23 @@ void disableInterrupts()
 |  Side Effects:  proc is added to the correct location in ready list.
 *-------------------------------------------------------------------*/
 void addProcToReadyList(procPtr proc) {
-
     if (DEBUG && debugflag){
       USLOSS_Console("addProcToReadyList(): Adding process %s to ReadyList\n",
                      proc->name);
     }
-
+    /* Process being added is the Sentinel process */
     if (ReadyList == NULL) {
-        ReadyList = proc; //In this case proc is the sentinel process
+        ReadyList = proc;
     } else {
-        // all priorities in list are less than proc
+
+        /* all priorities in list are less than proc */
         if(ReadyList->priority > proc->priority) {
             procPtr temp = ReadyList;
             ReadyList = proc;
             proc->nextProcPtr = temp;
-        } else { // add proc before first greater priority
+
+        /* Add process before first greater priority */
+        } else {
             procPtr next = ReadyList->nextProcPtr;
             procPtr last = ReadyList;
             while (next->priority <= proc->priority) {
@@ -675,21 +678,19 @@ void addProcToReadyList(procPtr proc) {
             proc->nextProcPtr = next;
         }
     }
-
     if (DEBUG && debugflag){
       USLOSS_Console("addProcToReadyList(): Process %s added to ReadyList\n",
                      proc->name);
      printReadyList(); 
     }
-
-}
+} /* addProcToReadyList */
 
 /*---------------------------- printReadyList -----------------------
 |  Function printReadyList
 |
 |  Purpose:  Prints a string representation of the ready list using
-|            the USLOSS_Console containing name and priority of process.
-|            Debugging must be enable.
+|            the USLOSS_Console containing name, priority of process,
+|            and process ID. Debugging must be enable.
 |
 |  Parameters:  None
 |
@@ -704,14 +705,14 @@ void printReadyList(){
 
     while (head->nextProcPtr != NULL) {
         head = head->nextProcPtr;
-        sprintf(str1, " -> %s(%d:PID=%d)", head->name, head->priority, head->pid);
+        sprintf(str1, " -> %s(%d:PID=%d)", head->name, head->priority, 
+                head->pid);
         strcat(str, str1);
     }
-
     if (DEBUG && debugflag){
       USLOSS_Console("printReadyList(): %s\n", str);
     }
-}
+} /* printReadyList */
 
 /*---------------------------- getProcSlot -----------------------
 |  Function getProcSlot
@@ -735,21 +736,20 @@ int getProcSlot() {
         counter++;
     }
     return hashedIndex;
-}
+} /* getProcSlot */
 
 /*---------------------------- zeroProcStruct -----------------------
 |  Function zeroProcStruct
 |
-|  Purpose:  Initializes a ProcStruct. Members are set to 0 or NULL,
-|            except in the case of priority which is set to the highest
-|            priority of five.
+|  Purpose:  Initializes a ProcStruct. Members are set to 0, NULL, or -1.
+|            A process's quit status is set to a value of -666.
 |
 |  Parameters:
-|      index (IN) --  The index of the ProcStruct in the ProcTable
+|      pid (IN) --  The process ID to be zeroed
 |
 |  Returns:  None
 |
-|  Side Effects:  The members of the ProcStruct at index are changed.
+|  Side Effects:  The members of the ProcStruct for pid are changed.
 *-------------------------------------------------------------------*/
 void zeroProcStruct(int pid) {
     int index = pid % MAXPROC;
@@ -764,7 +764,6 @@ void zeroProcStruct(int pid) {
     ProcTable[index].nextProcPtr = NULL;
     ProcTable[index].quitChildPtr = NULL;
     ProcTable[index].nextQuitSibling = NULL;
-    //ProcTable[index].zapPtr = NULL;
     ProcTable[index].whoZapped = NULL;
     ProcTable[index].nextWhoZapped = NULL;
     ProcTable[index].name[0] = '\0';
@@ -774,8 +773,7 @@ void zeroProcStruct(int pid) {
     ProcTable[index].quitStatus = -666;
     ProcTable[index].startTime = -1;
     ProcTable[index].zapped = 0;
-
-}
+} /* zeroProcStruct */
 
 procPtr firstChildWithStatus(procPtr parent, int status) {
     if (parent->childProcPtr != NULL) { // parent has a child
