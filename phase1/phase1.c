@@ -7,13 +7,12 @@
 
    @author Austin George
    @author Joshua Riccio
-   ------------------------------------------------------------------------ */
+------------------------------------------------------------------------ */
 
 #include "phase1.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
 #include "kernel.h"
 
 /* ------------------------- Prototypes ----------------------------------- */
@@ -754,11 +753,11 @@ procPtr firstChildWithStatus(procPtr parent, int status) {
 }
 
 /*---------------------------- dumpProcesses -----------------------
-|  Function dumpProcesses
+n dumpProcesses
 |
-|  Purpose:  Loops through all procesess and prints all active 
-|            processes (non empty processes). 
-|            
+|  Purpose:  Loops through all procesess and prints all active
+|            processes (non empty processes).
+|
 |
 |  Parameters:
 |            void
@@ -807,6 +806,20 @@ void dumpProcesses(){
     }
 }
 
+/*------------------------------------------------------------------
+|  Function removeFromChildList
+|
+|  Purpose:  Finds process in parent's childlist, removes process, reasigns
+|            all important processes
+|
+|
+|  Parameters:
+|            procPtr process, process to be deleted
+|
+|  Returns:  void
+|
+|  Side Effects:  Process is removed from parent's childList
+*-------------------------------------------------------------------*/
 void removeFromChildList(procPtr process) {
     procPtr temp = process;
     // process is at the head of the linked list
@@ -825,6 +838,19 @@ void removeFromChildList(procPtr process) {
     }
 }
 
+/*------------------------------------------------------------------
+|  Function removeFromQuitList
+|
+|  Purpose: Removes process from parent's quit list 
+|
+|
+|  Parameters:
+|            procPtr process, process to be removed
+|
+|  Returns:  void
+|
+|  Side Effects:  Process is removed from parent's quitList
+*-------------------------------------------------------------------*/
 void removeFromQuitList(procPtr process) {
     process->parentPtr->quitChildPtr = process->nextQuitSibling;
 
@@ -927,6 +953,20 @@ int unblockProc(int pid){
     return 0;
 }
 
+/*------------------------------------------------------------------
+|  Function removeFromReadyList
+|
+|  Purpose:  Finds process in ReadyList, removes process, reasigns
+|            all important processes
+|
+|
+|  Parameters:
+|            procPtr process, process to be deleted
+|
+|  Returns:  void
+|
+|  Side Effects:  Process is removed from ReadyList
+*-------------------------------------------------------------------*/
 void removeFromReadyList(procPtr process) {
     if(process == ReadyList){
         ReadyList = ReadyList->nextProcPtr;
