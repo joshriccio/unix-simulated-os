@@ -816,7 +816,6 @@ n dumpProcesses
 |  Purpose:  Loops through all procesess and prints all active
 |            processes (non empty processes).
 |
-|
 |  Parameters:
 |            void
 |
@@ -870,7 +869,6 @@ void dumpProcesses(){
 |  Purpose:  Finds process in parent's childlist, removes process, reasigns
 |            all important processes
 |
-|
 |  Parameters:
 |            procPtr process, process to be deleted
 |
@@ -900,7 +898,6 @@ void removeFromChildList(procPtr process) {
 |  Function removeFromQuitList
 |
 |  Purpose: Removes process from parent's quit list 
-|
 |
 |  Parameters:
 |            procPtr process, process to be removed
@@ -1020,7 +1017,6 @@ int blockMe(int newStatus){
 |
 |  Purpose:  Unblocks a process blocked by blockMe
 |
-|
 |  Parameters:
 |            int pid - the pid of the process to unblock
 |
@@ -1051,9 +1047,8 @@ int unblockProc(int pid){
 |  Function removeFromReadyList
 |
 |  Purpose:  Finds process in ReadyList, removes process, reasigns
-|            all important processes
-|
-|
+|            all important processes|
+|  
 |  Parameters:
 |            procPtr process, process to be deleted
 |
