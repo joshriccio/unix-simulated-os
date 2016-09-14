@@ -550,38 +550,65 @@ void dispatcher(void) {
 
 
 /* ------------------------------------------------------------------------
-   Name - sentinel
-   Purpose - The purpose of the sentinel routine is two-fold.  One
-             responsibility is to keep the system going when all other
-             processes are blocked.  The other is to detect and report
-             simple deadlock states.
-   Parameters - none
-   Returns - nothing
-   Side Effects -  if system is in deadlock, print appropriate error
-                   and halt.
-   ----------------------------------------------------------------------- */
-int sentinel (char *dummy)
-{
-    if (DEBUG && debugflag)
+|  Name - sentinel
+|
+|  Purpose - The purpose of the sentinel routine is two-fold.  One
+|            responsibility is to keep the system going when all other
+|            processes are blocked.  The other is to detect and report
+|            simple deadlock states.
+|
+|  Parameters - none
+|
+|  Returns - nothing
+|  
+|  Side Effects -  if system is in deadlock, print appropriate error
+|                  and halt.
+*------------------------------------------------------------------------- */
+int sentinel (char *dummy) {
+    if (DEBUG && debugflag) {
         USLOSS_Console("sentinel(): called\n");
-    while (1)
-    {
+    }
+    while (1) {
         checkDeadlock();
-        if (DEBUG && debugflag)
+        if (DEBUG && debugflag) {
             USLOSS_Console("sentinel(): before WaitInt()\n");
+        }
         USLOSS_WaitInt();
     }
 } /* sentinel */
 
 
 /* check to determine if deadlock has occurred... */
+/* ------------------------------------------------------------------------
+|  Name - checkDeadlock
+|
+|  Purpose - Checks to determine if a deadlock has occured. In phase1, a
+|            deadlock will occur if checkDeadlock is called and there
+|            are any processes, other then Sentinel, with a status other 
+|            then empty in the process table.
+|
+|  Parameters - none
+|
+|  Returns - nothing
+|  
+|  Side Effects - The USLOSS simulation is terminated. Either with an exit
+|                 code of 0, if all process completed normally or an exit
+|                 code of 1, a process other than Sentinel is in the process
+|                 table.
+*------------------------------------------------------------------------- */
 static void checkDeadlock(){
-    int numProc = 0;
+    int numProc = 0; // Number of processes in the process table
+
+    /* Check the status of every entry in the process table. Increment
+     * numProc if a process status in not EMPTY
+     */
     for (int i = 0; i < MAXPROC; i++) {
-        if (ProcTable[i].status != EMPTY) { // process is blocked in any way
+        if (ProcTable[i].status != EMPTY) {
             numProc++;
         }
     }
+
+    /* A deadlock has occured */
     if(numProc > 1){
         USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
                        " should be left. Halting...\n", numProc);
