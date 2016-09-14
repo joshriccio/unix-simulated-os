@@ -753,6 +753,20 @@ procPtr firstChildWithStatus(procPtr parent, int status) {
     return NULL;
 }
 
+/*---------------------------- dumpProcesses -----------------------
+|  Function dumpProcesses
+|
+|  Purpose:  Loops through all procesess and prints all active 
+|            processes (non empty processes). 
+|            
+|
+|  Parameters:
+|            void
+|
+|  Returns:  void
+|
+|  Side Effects:  Process printed to screen using USLOSS_Console
+*-------------------------------------------------------------------*/
 void dumpProcesses(){
     char *ready = "READY";
     char *running = "RUNNING";
