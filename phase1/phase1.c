@@ -129,21 +129,28 @@ void finish()
 } /* finish */
 
 /* ------------------------------------------------------------------------
-   Name - fork1
-   Purpose - Gets a new process from the process table and initializes
-             information of the process.  Updates information in the
-             parent process to reflect this child process creation.
-   Parameters - the process procedure address, the size of the stack and
-                the priority to be assigned to the child process.
-   Returns - the process id of the created child or -1 if no child could
-             be created or if priority is not between max and min priority.
-   Side Effects - ReadyList is changed, ProcTable is changed, Current
-                  process information changed
-   ------------------------------------------------------------------------ */
+|  Name - fork1
+|
+|  Purpose - Gets a new process from the process table and initializes
+|            information of the process.  Updates information in the
+|            parent process to reflect this child process creation.
+|
+|  Parameters - the process procedure address, the size of the stack and
+|               the priority to be assigned to the child process.
+|
+|  Returns - The process id of the created child. 
+|            -1 if no child could be created or if priority is not between 
+|            max and min priority. A value of -2 is returned if stacksize is 
+|            less than USLOSS_MIN_STACK
+|
+|  Side Effects - ReadyList is changed, ProcTable is changed.
+*-------------------------------------------------------------------------- */
 int fork1(char *name, int (*startFunc)(char *), char *arg,
-          int stacksize, int priority)
-{
-    // test if in kernel mode; halt if in user mode; disabling interrupts
+          int stacksize, int priority) {
+
+    int procSlot = -1; // The location in process table to store PCB
+
+    /* test if in kernel mode; halt if in user mode; disabling interrupts */
     if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
         USLOSS_Console("fork1(): called while in user mode, by process %d."
                        " Halting...\n", Current->pid);
@@ -154,12 +161,11 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     disableInterrupts();
 
-    int procSlot = -1;
-
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("fork1(): creating process %s\n", name);
+    }
 
-    // Return if priority is out of bounds
+    /* Return -1 if priority is out of bounds */
     if ((nextPid != SENTINELPID) && (priority > MINPRIORITY || 
                               priority < MAXPRIORITY)) {
         if (DEBUG && debugflag) {
@@ -169,7 +175,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         return -1;
     }
 
-    // Return if stack size is too small
+    /* Return -2 if stack size is too small */
     if (stacksize < USLOSS_MIN_STACK) {
         if (DEBUG && debugflag) {
             USLOSS_Console("fork1(): Process %s stack size too small!\n", 
@@ -178,7 +184,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         return -2;
     }
 
-    // find an empty slot in the process table
+    /* find an empty slot in the process table using getProcSlot() */
     procSlot = getProcSlot();
     if (procSlot == -1) {
         if (DEBUG && debugflag) {
@@ -188,17 +194,18 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         return -1;
     }
 
-    // fill-in entry in process table
+    /* Halt USLOSS if process name is too long */
     if ( strlen(name) >= (MAXNAME - 1) ) {
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
         USLOSS_Halt(1);
     }
     
-    // initializing procStruct in ProcTable
+    /* initializing procStruct in ProcTable for index procSlot */
     ProcTable[procSlot].pid = nextPid;
     strcpy(ProcTable[procSlot].name, name);
     ProcTable[procSlot].startFunc = startFunc; 
-    // check argument
+
+    /* initialization and error checking for process argument */
     if (arg == NULL) {
         ProcTable[procSlot].startArg[0] = '\0';
     } else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -210,41 +217,44 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].stack = malloc(stacksize);
     ProcTable[procSlot].priority = priority;
-    // setting parent, child, and sibling pointers
-    if (Current != NULL) { // Current is the parent process
-        if (Current->childProcPtr == NULL) {  // Current has no children
+
+    /* set parent, child, and sibling pointers */
+    if (Current != NULL) {                     // Current is the parent process
+        if (Current->childProcPtr == NULL) {   // Current has no children
             Current->childProcPtr = &ProcTable[procSlot];
         } else {  // Current has children
             procPtr child = Current->childProcPtr;
-            while (child->nextSiblingPtr != NULL) { // Find last sibling in L 
+
+            /* Insert child at end of Sib List */
+            while (child->nextSiblingPtr != NULL) {
                 child = child->nextSiblingPtr;
             }
-            // Insert child at end of Sib List
             child->nextSiblingPtr = &ProcTable[procSlot]; 
         }
     } 
     ProcTable[procSlot].parentPtr = Current; // value could be NULL
     
-    // Initialize context for this process, but use launch function pointer for
-    // the initial value of the process's program counter (PC)
+    /* Initialize context for this process, but use launch function pointer for
+     * the initial value of the process's program counter (PC)
+     */
     USLOSS_ContextInit(&(ProcTable[procSlot].state), USLOSS_PsrGet(),
                        ProcTable[procSlot].stack,
                        ProcTable[procSlot].stackSize,
                        launch);
 
-    // for future phase(s)
-    p1_fork(ProcTable[procSlot].pid);
+    p1_fork(ProcTable[procSlot].pid); // for future phase(s)
+    
 
-    // Make process ready and add to ready list
+    /* Make process ready and add to ready list */
     ProcTable[procSlot].status = READY;
     addProcToReadyList(&ProcTable[procSlot]);
 
     nextPid++;  // increment for next process to start at this pid
 
-    if (ProcTable[procSlot].pid != SENTINELPID) { // sentinel does not call
+    /* Sentinel does not call dispatcher when it is first created */
+    if (ProcTable[procSlot].pid != SENTINELPID) {
         dispatcher();
     }
-
     return ProcTable[procSlot].pid;
 } /* fork1 */
 
