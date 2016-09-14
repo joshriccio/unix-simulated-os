@@ -494,7 +494,7 @@ int zap(int pid) {
         return -1;
     }
     return 0;
-}
+}/* zap */
 
 int isZapped() {
     return Current->zapped;
@@ -784,6 +784,19 @@ void zeroProcStruct(int pid) {
     ProcTable[index].zapped = 0;
 } /* zeroProcStruct */
 
+/*-------------------------firstChildWithStatus---------------------
+n firstChildWithStatus
+|
+|  Purpose:  Finds first child with matching status passed in|
+|
+|  Parameters:
+|            procPtr parent - the parent of the children
+|            int status     - the status to search for
+|
+|  Returns:  procPtr
+|
+|  Side Effects:  none
+*-------------------------------------------------------------------*/
 procPtr firstChildWithStatus(procPtr parent, int status) {
     if (parent->childProcPtr != NULL) { // parent has a child
         procPtr child = parent->childProcPtr;
@@ -795,7 +808,7 @@ procPtr firstChildWithStatus(procPtr parent, int status) {
         }
     }
     return NULL;
-}
+}/* firstChildWithStatus */
 
 /*---------------------------- dumpProcesses -----------------------
 n dumpProcesses
@@ -849,7 +862,7 @@ void dumpProcesses(){
                           status, parent); 
         }
     }
-}
+}/* dumpProcesses */
 
 /*------------------------------------------------------------------
 |  Function removeFromChildList
@@ -881,7 +894,7 @@ void removeFromChildList(procPtr process) {
        USLOSS_Console("removeFromChildList(): Process %d removed.\n", 
                       temp->pid);
     }
-}
+}/* removeFromChildList */
 
 /*------------------------------------------------------------------
 |  Function removeFromQuitList
@@ -903,13 +916,24 @@ void removeFromQuitList(procPtr process) {
        USLOSS_Console("removeFromQuitList(): Process %d removed.\n", 
                       process->pid);
     }
-}
+}/* removeFromQuitList */
 
 void clock_handler() {
     timeSlice();
 }
 
-
+/*------------------------------------------------------------------
+|  Function addToQuitChildList
+|
+|  Purpose:  Adds a process to it's parent's quit child list
+|
+|  Parameters:
+|            procPtr ptr - the parent process to add the child to
+|
+|  Returns:  void
+|
+|  Side Effects: the process is added back of the quit child list
+*-------------------------------------------------------------------*/
 void addToQuitChildList(procPtr ptr) {
     if (ptr->quitChildPtr == NULL) {
         ptr->quitChildPtr = Current;
@@ -920,7 +944,7 @@ void addToQuitChildList(procPtr ptr) {
         child = child->nextQuitSibling;
     }
     child->nextQuitSibling = Current;
-}
+}/* addToQuitChildList */
 
 int getpid(){
     return Current->pid;
@@ -948,6 +972,18 @@ int isBlocked(int index) {
     return 0;
 }
 
+/*------------------------------------------------------------------
+|  Function blockMe
+|
+|  Purpose:  Blocks a process and removes from Readylist
+|
+|  Parameters:
+|            int newStatus - the status for the process to block on
+|
+|  Returns:  int - the return code
+|
+|  Side Effects:  Process status is changed, removed from readyList
+*-------------------------------------------------------------------*/
 int blockMe(int newStatus){
     if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
         USLOSS_Console("blockMe(): called while in user mode, by process %d."
@@ -977,8 +1013,21 @@ int blockMe(int newStatus){
       return -1;
     }
     return 0;
-}
+}/*blockMe */
 
+/*------------------------------------------------------------------
+|  Function unBlockProc
+|
+|  Purpose:  Unblocks a process blocked by blockMe
+|
+|
+|  Parameters:
+|            int pid - the pid of the process to unblock
+|
+|  Returns:  int - the return code
+|
+|  Side Effects:  Process status is changed, added back to readyList
+*-------------------------------------------------------------------*/
 int unblockProc(int pid){
     if (ProcTable[pid % MAXPROC].pid != pid) {
         return -2;
@@ -996,7 +1045,7 @@ int unblockProc(int pid){
     addProcToReadyList(&ProcTable[pid % MAXPROC]);
     dispatcher();
     return 0;
-}
+}/* unblockProc */
 
 /*------------------------------------------------------------------
 |  Function removeFromReadyList
@@ -1026,4 +1075,4 @@ void removeFromReadyList(procPtr process) {
         USLOSS_Console("removeFromReadyList(): Process %d removed from"
                        " ReadyList.\n", process->pid);
     }
-}
+}/* removeFromReadyList */
