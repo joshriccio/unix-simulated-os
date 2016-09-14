@@ -492,26 +492,33 @@ int isZapped() {
 }
 
 /* ------------------------------------------------------------------------
-   Name - dispatcher
-   Purpose - dispatches ready processes.  The process with the highest
-             priority (the first on the ready list) is scheduled to
-             run.  The old process is swapped out and the new process
-             swapped in.
-   Parameters - none
-   Returns - nothing
-   Side Effects - the context of the machine is changed
-   ----------------------------------------------------------------------- */
-void dispatcher(void)
-{
-    if (DEBUG && debugflag)
+|  Name - dispatcher
+|
+|  Purpose - dispatches ready processes.  The process with the highest
+|            priority (the first on the ready list) is scheduled to
+|            run.  The old process is swapped out and the new process
+|            swapped in.
+|
+|  Parameters - none
+|
+|  Returns - nothing
+|
+|  Side Effects - the context of the machine is changed
+*------------------------------------------------------------------------- */
+void dispatcher(void) {
+    if (DEBUG && debugflag) {
         USLOSS_Console("dispatcher(): started.\n");
-
-    if (Current == NULL) { // Dispatcher called for first time
+    }
+    
+    /* Dispacher is called for the first time for starting process (start1) */
+    if (Current == NULL) {
         Current = ReadyList;
-        if (DEBUG && debugflag)
+        if (DEBUG && debugflag) {
             USLOSS_Console("dispatcher(): dispatching %s.\n", Current->name);
+        }
         Current->startTime = USLOSS_Clock();
-        // enable interrupts
+
+        /* Enable Interrupts - returning to user code */
         USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
         USLOSS_ContextSwitch(NULL, &Current->state);
     } else {
@@ -523,15 +530,18 @@ void dispatcher(void)
         removeFromReadyList(Current);
         Current->status = RUNNING;
         addProcToReadyList(Current);
-        if (DEBUG && debugflag)
+        if (DEBUG && debugflag) {
             USLOSS_Console("dispatcher(): dispatching %s.\n", 
                     Current->name);
+        }
         Current->startTime = USLOSS_Clock();
         p1_switch(old->pid, Current->pid);
-        // enable interrupts
+
+        /* Enable Interrupts - returning to user code */
         USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
         USLOSS_ContextSwitch(&old->state, &Current->state);
     }
+
     if (DEBUG && debugflag){
         USLOSS_Console("dispatcher(): Printing process table");
         dumpProcesses();
