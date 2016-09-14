@@ -128,21 +128,28 @@ void finish()
 } /* finish */
 
 /* ------------------------------------------------------------------------
-   Name - fork1
-   Purpose - Gets a new process from the process table and initializes
-             information of the process.  Updates information in the
-             parent process to reflect this child process creation.
-   Parameters - the process procedure address, the size of the stack and
-                the priority to be assigned to the child process.
-   Returns - the process id of the created child or -1 if no child could
-             be created or if priority is not between max and min priority.
-   Side Effects - ReadyList is changed, ProcTable is changed, Current
-                  process information changed
-   ------------------------------------------------------------------------ */
+|  Name - fork1
+|
+|  Purpose - Gets a new process from the process table and initializes
+|            information of the process.  Updates information in the
+|            parent process to reflect this child process creation.
+|
+|  Parameters - the process procedure address, the size of the stack and
+|               the priority to be assigned to the child process.
+|
+|  Returns - The process id of the created child. 
+|            -1 if no child could be created or if priority is not between 
+|            max and min priority. A value of -2 is returned if stacksize is 
+|            less than USLOSS_MIN_STACK
+|
+|  Side Effects - ReadyList is changed, ProcTable is changed.
+*-------------------------------------------------------------------------- */
 int fork1(char *name, int (*startFunc)(char *), char *arg,
-          int stacksize, int priority)
-{
-    // test if in kernel mode; halt if in user mode; disabling interrupts
+          int stacksize, int priority) {
+
+    int procSlot = -1; // The location in process table to store PCB
+
+    /* test if in kernel mode; halt if in user mode; disabling interrupts */
     if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
         USLOSS_Console("fork1(): called while in user mode, by process %d."
                        " Halting...\n", Current->pid);
@@ -153,12 +160,11 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     disableInterrupts();
 
-    int procSlot = -1;
-
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("fork1(): creating process %s\n", name);
+    }
 
-    // Return if priority is out of bounds
+    /* Return -1 if priority is out of bounds */
     if ((nextPid != SENTINELPID) && (priority > MINPRIORITY || 
                               priority < MAXPRIORITY)) {
         if (DEBUG && debugflag) {
@@ -168,7 +174,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         return -1;
     }
 
-    // Return if stack size is too small
+    /* Return -2 if stack size is too small */
     if (stacksize < USLOSS_MIN_STACK) {
         if (DEBUG && debugflag) {
             USLOSS_Console("fork1(): Process %s stack size too small!\n", 
@@ -177,7 +183,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         return -2;
     }
 
-    // find an empty slot in the process table
+    /* find an empty slot in the process table using getProcSlot() */
     procSlot = getProcSlot();
     if (procSlot == -1) {
         if (DEBUG && debugflag) {
@@ -187,17 +193,18 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         return -1;
     }
 
-    // fill-in entry in process table
+    /* Halt USLOSS if process name is too long */
     if ( strlen(name) >= (MAXNAME - 1) ) {
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
         USLOSS_Halt(1);
     }
     
-    // initializing procStruct in ProcTable
+    /* initializing procStruct in ProcTable for index procSlot */
     ProcTable[procSlot].pid = nextPid;
     strcpy(ProcTable[procSlot].name, name);
     ProcTable[procSlot].startFunc = startFunc; 
-    // check argument
+
+    /* initialization and error checking for process argument */
     if (arg == NULL) {
         ProcTable[procSlot].startArg[0] = '\0';
     } else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -209,41 +216,44 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].stack = malloc(stacksize);
     ProcTable[procSlot].priority = priority;
-    // setting parent, child, and sibling pointers
-    if (Current != NULL) { // Current is the parent process
-        if (Current->childProcPtr == NULL) {  // Current has no children
+
+    /* set parent, child, and sibling pointers */
+    if (Current != NULL) {                     // Current is the parent process
+        if (Current->childProcPtr == NULL) {   // Current has no children
             Current->childProcPtr = &ProcTable[procSlot];
         } else {  // Current has children
             procPtr child = Current->childProcPtr;
-            while (child->nextSiblingPtr != NULL) { // Find last sibling in L 
+
+            /* Insert child at end of Sib List */
+            while (child->nextSiblingPtr != NULL) {
                 child = child->nextSiblingPtr;
             }
-            // Insert child at end of Sib List
             child->nextSiblingPtr = &ProcTable[procSlot]; 
         }
     } 
     ProcTable[procSlot].parentPtr = Current; // value could be NULL
     
-    // Initialize context for this process, but use launch function pointer for
-    // the initial value of the process's program counter (PC)
+    /* Initialize context for this process, but use launch function pointer for
+     * the initial value of the process's program counter (PC)
+     */
     USLOSS_ContextInit(&(ProcTable[procSlot].state), USLOSS_PsrGet(),
                        ProcTable[procSlot].stack,
                        ProcTable[procSlot].stackSize,
                        launch);
 
-    // for future phase(s)
-    p1_fork(ProcTable[procSlot].pid);
+    p1_fork(ProcTable[procSlot].pid); // for future phase(s)
+    
 
-    // Make process ready and add to ready list
+    /* Make process ready and add to ready list */
     ProcTable[procSlot].status = READY;
     addProcToReadyList(&ProcTable[procSlot]);
 
     nextPid++;  // increment for next process to start at this pid
 
-    if (ProcTable[procSlot].pid != SENTINELPID) { // sentinel does not call
+    /* Sentinel does not call dispatcher when it is first created */
+    if (ProcTable[procSlot].pid != SENTINELPID) {
         dispatcher();
     }
-
     return ProcTable[procSlot].pid;
 } /* fork1 */
 
@@ -491,26 +501,33 @@ int isZapped() {
 }
 
 /* ------------------------------------------------------------------------
-   Name - dispatcher
-   Purpose - dispatches ready processes.  The process with the highest
-             priority (the first on the ready list) is scheduled to
-             run.  The old process is swapped out and the new process
-             swapped in.
-   Parameters - none
-   Returns - nothing
-   Side Effects - the context of the machine is changed
-   ----------------------------------------------------------------------- */
-void dispatcher(void)
-{
-    if (DEBUG && debugflag)
+|  Name - dispatcher
+|
+|  Purpose - dispatches ready processes.  The process with the highest
+|            priority (the first on the ready list) is scheduled to
+|            run.  The old process is swapped out and the new process
+|            swapped in.
+|
+|  Parameters - none
+|
+|  Returns - nothing
+|
+|  Side Effects - the context of the machine is changed
+*------------------------------------------------------------------------- */
+void dispatcher(void) {
+    if (DEBUG && debugflag) {
         USLOSS_Console("dispatcher(): started.\n");
-
-    if (Current == NULL) { // Dispatcher called for first time
+    }
+    
+    /* Dispacher is called for the first time for starting process (start1) */
+    if (Current == NULL) {
         Current = ReadyList;
-        if (DEBUG && debugflag)
+        if (DEBUG && debugflag) {
             USLOSS_Console("dispatcher(): dispatching %s.\n", Current->name);
+        }
         Current->startTime = USLOSS_Clock();
-        // enable interrupts
+
+        /* Enable Interrupts - returning to user code */
         USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
         USLOSS_ContextSwitch(NULL, &Current->state);
     } else {
@@ -522,15 +539,18 @@ void dispatcher(void)
         removeFromReadyList(Current);
         Current->status = RUNNING;
         addProcToReadyList(Current);
-        if (DEBUG && debugflag)
+        if (DEBUG && debugflag) {
             USLOSS_Console("dispatcher(): dispatching %s.\n", 
                     Current->name);
+        }
         Current->startTime = USLOSS_Clock();
         p1_switch(old->pid, Current->pid);
-        // enable interrupts
+
+        /* Enable Interrupts - returning to user code */
         USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
         USLOSS_ContextSwitch(&old->state, &Current->state);
     }
+
     if (DEBUG && debugflag){
         USLOSS_Console("dispatcher(): Printing process table");
         dumpProcesses();
@@ -539,38 +559,65 @@ void dispatcher(void)
 
 
 /* ------------------------------------------------------------------------
-   Name - sentinel
-   Purpose - The purpose of the sentinel routine is two-fold.  One
-             responsibility is to keep the system going when all other
-             processes are blocked.  The other is to detect and report
-             simple deadlock states.
-   Parameters - none
-   Returns - nothing
-   Side Effects -  if system is in deadlock, print appropriate error
-                   and halt.
-   ----------------------------------------------------------------------- */
-int sentinel (char *dummy)
-{
-    if (DEBUG && debugflag)
+|  Name - sentinel
+|
+|  Purpose - The purpose of the sentinel routine is two-fold.  One
+|            responsibility is to keep the system going when all other
+|            processes are blocked.  The other is to detect and report
+|            simple deadlock states.
+|
+|  Parameters - none
+|
+|  Returns - nothing
+|  
+|  Side Effects -  if system is in deadlock, print appropriate error
+|                  and halt.
+*------------------------------------------------------------------------- */
+int sentinel (char *dummy) {
+    if (DEBUG && debugflag) {
         USLOSS_Console("sentinel(): called\n");
-    while (1)
-    {
+    }
+    while (1) {
         checkDeadlock();
-        if (DEBUG && debugflag)
+        if (DEBUG && debugflag) {
             USLOSS_Console("sentinel(): before WaitInt()\n");
+        }
         USLOSS_WaitInt();
     }
 } /* sentinel */
 
 
 /* check to determine if deadlock has occurred... */
+/* ------------------------------------------------------------------------
+|  Name - checkDeadlock
+|
+|  Purpose - Checks to determine if a deadlock has occured. In phase1, a
+|            deadlock will occur if checkDeadlock is called and there
+|            are any processes, other then Sentinel, with a status other 
+|            then empty in the process table.
+|
+|  Parameters - none
+|
+|  Returns - nothing
+|  
+|  Side Effects - The USLOSS simulation is terminated. Either with an exit
+|                 code of 0, if all process completed normally or an exit
+|                 code of 1, a process other than Sentinel is in the process
+|                 table.
+*------------------------------------------------------------------------- */
 static void checkDeadlock(){
-    int numProc = 0;
+    int numProc = 0; // Number of processes in the process table
+
+    /* Check the status of every entry in the process table. Increment
+     * numProc if a process status in not EMPTY
+     */
     for (int i = 0; i < MAXPROC; i++) {
-        if (ProcTable[i].status != EMPTY) { // process is blocked in any way
+        if (ProcTable[i].status != EMPTY) {
             numProc++;
         }
     }
+
+    /* A deadlock has occured */
     if(numProc > 1){
         USLOSS_Console("checkDeadlock(): numProc = %d. Only Sentinel"
                        " should be left. Halting...\n", numProc);
@@ -603,7 +650,8 @@ void disableInterrupts()
 |
 |  Purpose:  Adds a new process to the ready list. Process is added to 
 |            the list based on priority. Lower priorities are placed at
-|            the front of the list.
+|            the front of the list. A process is placed at the end of
+|            all processes with the same pritority.
 |
 |  Parameters:  proc (IN) -- The process to be added to the ready list.
 |
@@ -612,21 +660,23 @@ void disableInterrupts()
 |  Side Effects:  proc is added to the correct location in ready list.
 *-------------------------------------------------------------------*/
 void addProcToReadyList(procPtr proc) {
-
     if (DEBUG && debugflag){
       USLOSS_Console("addProcToReadyList(): Adding process %s to ReadyList\n",
                      proc->name);
     }
-
+    /* Process being added is the Sentinel process */
     if (ReadyList == NULL) {
-        ReadyList = proc; //In this case proc is the sentinel process
+        ReadyList = proc;
     } else {
-        // all priorities in list are less than proc
+
+        /* all priorities in list are less than proc */
         if(ReadyList->priority > proc->priority) {
             procPtr temp = ReadyList;
             ReadyList = proc;
             proc->nextProcPtr = temp;
-        } else { // add proc before first greater priority
+
+        /* Add process before first greater priority */
+        } else {
             procPtr next = ReadyList->nextProcPtr;
             procPtr last = ReadyList;
             while (next->priority <= proc->priority) {
@@ -637,21 +687,19 @@ void addProcToReadyList(procPtr proc) {
             proc->nextProcPtr = next;
         }
     }
-
     if (DEBUG && debugflag){
       USLOSS_Console("addProcToReadyList(): Process %s added to ReadyList\n",
                      proc->name);
      printReadyList(); 
     }
-
-}
+} /* addProcToReadyList */
 
 /*---------------------------- printReadyList -----------------------
 |  Function printReadyList
 |
 |  Purpose:  Prints a string representation of the ready list using
-|            the USLOSS_Console containing name and priority of process.
-|            Debugging must be enable.
+|            the USLOSS_Console containing name, priority of process,
+|            and process ID. Debugging must be enable.
 |
 |  Parameters:  None
 |
@@ -666,14 +714,14 @@ void printReadyList(){
 
     while (head->nextProcPtr != NULL) {
         head = head->nextProcPtr;
-        sprintf(str1, " -> %s(%d:PID=%d)", head->name, head->priority, head->pid);
+        sprintf(str1, " -> %s(%d:PID=%d)", head->name, head->priority, 
+                head->pid);
         strcat(str, str1);
     }
-
     if (DEBUG && debugflag){
       USLOSS_Console("printReadyList(): %s\n", str);
     }
-}
+} /* printReadyList */
 
 /*---------------------------- getProcSlot -----------------------
 |  Function getProcSlot
@@ -697,21 +745,20 @@ int getProcSlot() {
         counter++;
     }
     return hashedIndex;
-}
+} /* getProcSlot */
 
 /*---------------------------- zeroProcStruct -----------------------
 |  Function zeroProcStruct
 |
-|  Purpose:  Initializes a ProcStruct. Members are set to 0 or NULL,
-|            except in the case of priority which is set to the highest
-|            priority of five.
+|  Purpose:  Initializes a ProcStruct. Members are set to 0, NULL, or -1.
+|            A process's quit status is set to a value of -666.
 |
 |  Parameters:
-|      index (IN) --  The index of the ProcStruct in the ProcTable
+|      pid (IN) --  The process ID to be zeroed
 |
 |  Returns:  None
 |
-|  Side Effects:  The members of the ProcStruct at index are changed.
+|  Side Effects:  The members of the ProcStruct for pid are changed.
 *-------------------------------------------------------------------*/
 void zeroProcStruct(int pid) {
     int index = pid % MAXPROC;
@@ -726,7 +773,6 @@ void zeroProcStruct(int pid) {
     ProcTable[index].nextProcPtr = NULL;
     ProcTable[index].quitChildPtr = NULL;
     ProcTable[index].nextQuitSibling = NULL;
-    //ProcTable[index].zapPtr = NULL;
     ProcTable[index].whoZapped = NULL;
     ProcTable[index].nextWhoZapped = NULL;
     ProcTable[index].name[0] = '\0';
@@ -736,8 +782,7 @@ void zeroProcStruct(int pid) {
     ProcTable[index].quitStatus = -666;
     ProcTable[index].startTime = -1;
     ProcTable[index].zapped = 0;
-
-}
+} /* zeroProcStruct */
 
 procPtr firstChildWithStatus(procPtr parent, int status) {
     if (parent->childProcPtr != NULL) { // parent has a child
