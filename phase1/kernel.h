@@ -1,11 +1,7 @@
-/* Patrick's DEBUG printing constant... */
-#define DEBUG 1
+#define DEBUG 1 //Degub constant
 
 typedef struct procStruct procStruct;
-
 typedef struct procStruct * procPtr;
-
-//int psrInit(struct psrBits * psr_bits, unsigned int psrValue);
 
 struct procStruct {
    procPtr         nextProcPtr;
@@ -14,7 +10,6 @@ struct procStruct {
    procPtr         parentPtr;
    procPtr         quitChildPtr;
    procPtr         nextQuitSibling;
-   //procPtr         zapPtr;
    procPtr         whoZapped;
    procPtr         nextWhoZapped;
    char            name[MAXNAME];     /* process's name */
@@ -22,14 +17,13 @@ struct procStruct {
    USLOSS_Context  state;             /* current context for process */
    short           pid;               /* process id */
    int             priority;
-   int (* startFunc) (char *);   /* function where process begins -- launch */
+   int (* startFunc) (char *);        /* function where process begins -- launch */
    char           *stack;
    unsigned int    stackSize;
-   int             status;        /* READY, BLOCKED, QUIT, etc. */
+   int             status;            /* READY, BLOCKED, QUIT, etc. */
    int             quitStatus;
    int             startTime;
    int             zapped;
-   /* other fields as needed... */
 };
 
 struct psrBits {
@@ -44,15 +38,6 @@ union psrValues {
    struct psrBits bits;
    unsigned int integerPart;
 };
-
-// TODO: Untested bits
-/*int psrInit(struct psrBits * psr_bits, unsigned int psrValue) {
-    psr_bits->curMode = psrValue & 1;
-    psr_bits->curIntEnable = psrValue & 2;
-    psr_bits->prevMode = psrValue & 4;
-    psr_bits->prevIntEnable = psrValue & 8;
-    return 0;
-}*/
 
 int getPsrCurMode(int psrValue) {
     return psrValue & 1;
@@ -70,7 +55,7 @@ int getPsrPrevInteruptMode(int psrValue) {
     return psrValue & 8;
 }
 
-/* Some useful constants.  Add more as needed... */
+/* Constants defined for phase1 */
 #define NO_CURRENT_PROCESS NULL
 #define MINPRIORITY 5
 #define MAXPRIORITY 1
@@ -78,7 +63,7 @@ int getPsrPrevInteruptMode(int psrValue) {
 #define SENTINELPRIORITY (MINPRIORITY + 1)
 #define TIME_SLICE 80000
 
-//TODO Add more status contants
+/* Process statuses */
 #define READY 1
 #define RUNNING 2
 #define QUIT 4
