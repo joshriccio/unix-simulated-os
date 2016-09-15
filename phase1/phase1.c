@@ -215,7 +215,10 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         strcpy(ProcTable[procSlot].startArg, arg);
     }
     ProcTable[procSlot].stackSize = stacksize;
-    ProcTable[procSlot].stack = malloc(stacksize);
+    if ((ProcTable[procSlot].stack = malloc(stacksize)) == NULL) {
+        USLOSS_Console("fork1(): malloc fail!  Halting...\n");
+        USLOSS_Halt(1);
+    }
     ProcTable[procSlot].priority = priority;
 
     /* set parent, child, and sibling pointers */
