@@ -34,7 +34,6 @@ void addToQuitChildList(procPtr ptr);
 int getpid();
 void timeSlice();
 int readCurStartTime();
-int isBlocked(int index);
 int zap(int pid);
 int isZapped();
 void removeFromReadyList(procPtr process);
@@ -59,35 +58,42 @@ unsigned int nextPid = SENTINELPID;
 
 /* -------------------------- Functions ----------------------------------- */
 /* ------------------------------------------------------------------------
-   Name - startup
-   Purpose - Initializes process lists and clock interrupt vector.
-             Start up sentinel process and the test process.
-   Parameters - none, called by USLOSS
-   Returns - nothing
-   Side Effects - lots, starts the whole thing
-   ----------------------------------------------------------------------- */
-void startup()
-{
+|  Name - startup
+|
+|  Purpose - Initializes process lists and clock interrupt vector.
+|            Start up sentinel process and the test process.
+|
+|  Parameters - none, called by USLOSS
+|
+|  Returns - nothing
+|
+|  Side Effects - lots, starts the whole thing
+*------------------------------------------------------------------------- */
+void startup() {
     int result; // value returned by call to fork1()
 
     // initialize the process table
-    if (DEBUG && debugflag)
-        USLOSS_Console("startup(): initializing process table, ProcTable[]\n");
+    if (DEBUG && debugflag) {
+        USLOSS_Console("startup(): initializing process table, "
+                "ProcTable[]\n");
+    }
     for (int i = 0; i < MAXPROC; i++) {
         zeroProcStruct(i);
     }
 
     // Initialize the Ready list, etc.
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("startup(): initializing the Ready list\n");
+    }
     ReadyList = NULL;
 
     // Initialize the clock interrupt handler
     USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
 
     // startup a sentinel process
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("startup(): calling fork1() for sentinel\n");
+    }
     result = fork1("sentinel", sentinel, NULL, USLOSS_MIN_STACK,
                     SENTINELPRIORITY);
     if (result < 0) {
@@ -99,8 +105,9 @@ void startup()
     }
   
     // start the test process
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("startup(): calling fork1() for start1\n");
+    }
     result = fork1("start1", start1, NULL, 2 * USLOSS_MIN_STACK, 1);
     if (result < 0) {
         USLOSS_Console("startup(): fork1 for start1 returned an error, ");
@@ -115,12 +122,16 @@ void startup()
 } /* startup */
 
 /* ------------------------------------------------------------------------
-   Name - finish
-   Purpose - Required by USLOSS
-   Parameters - none
-   Returns - nothing
-   Side Effects - none
-   ----------------------------------------------------------------------- */
+|  Name - finish
+|
+|  Purpose - Required by USLOSS
+|
+|  Parameters - none
+|
+|  Returns - nothing
+|
+|  Side Effects - none
+*------------------------------------------------------------------------- */
 void finish()
 {
     if (DEBUG && debugflag)
@@ -553,6 +564,9 @@ int zap(int pid) {
     return 0;
 }/* zap */
 
+/* 
+ * isZapped returns whether a process has been zapped.
+ */
 int isZapped() {
     return Current->zapped;
 }
@@ -816,7 +830,6 @@ int getProcSlot() {
 *-------------------------------------------------------------------*/
 void zeroProcStruct(int pid) {
     int index = pid % MAXPROC;
-
     ProcTable[index].pid = -1;
     ProcTable[index].stackSize = -1;
     ProcTable[index].stack = NULL; 
@@ -839,7 +852,7 @@ void zeroProcStruct(int pid) {
 } /* zeroProcStruct */
 
 /*---------------------------- dumpProcesses -----------------------
-n dumpProcesses
+|  Function dumpProcesses
 |
 |  Purpose:  Loops through all procesess and prints all active
 |            processes (non empty processes).
@@ -858,7 +871,8 @@ void dumpProcesses(){
     char *join_blocked = "JOIN_BLOCKED";
     char *quit = "QUIT";
     char *zap_blocked = "ZAP_BLOCKED";
-    USLOSS_Console("\n     PID       Name   Priority        Status     Parent\n");
+    USLOSS_Console("\n     PID       Name   Priority        Status     "
+            "Parent\n");
     for(int i=0; i<50; i++){
         char buf[30];
         char *status = buf;
@@ -971,14 +985,23 @@ void addToQuitChildList(procPtr ptr) {
     child->nextQuitSibling = Current;
 }/* addToQuitChildList */
 
+/*
+ * Returns the pid of the current process
+ */
 int getpid(){
     return Current->pid;
 }
 
+/*
+ * Returns the start time of the current process
+ */
 int readCurStartTime() {
     return Current->startTime;
 }
 
+/*
+ * Calls dispatcher if a process has been time sliced
+ */
 void timeSlice() {
     if (readtime() >= TIME_SLICE) {
         dispatcher();
@@ -986,15 +1009,12 @@ void timeSlice() {
     return;
 }
 
+/*
+ * Returns the difference between the current process's start time and
+ * the USLOSS clock
+ */
 int readtime() {
     return USLOSS_Clock() - readCurStartTime();
-}
-
-int isBlocked(int index) {
-    if (ProcTable[index].status > 7) {
-        return 1;
-    }
-    return 0;
 }
 
 /*------------------------------------------------------------------
@@ -1100,6 +1120,20 @@ void removeFromReadyList(procPtr process) {
     }
 }/* removeFromReadyList */
 
+/*------------------------------------------------------------------
+|  Function unblockZappers
+|
+|  Purpose:  Unblocks all processes that zapped a process.
+|  
+|  Parameters:
+|            procPtr ptr - head of linked list of processes that zapped
+|                          the calling process.
+|
+|  Returns:  void
+|
+|  Side Effects:  Process status is set to READY and process is added
+|                 to the ready list.
+*-------------------------------------------------------------------*/
 void unblockZappers(procPtr ptr) {
     if (ptr == NULL) {
         return;
@@ -1107,4 +1141,4 @@ void unblockZappers(procPtr ptr) {
     unblockZappers(ptr->nextWhoZapped);
     ptr->status = READY;
     addProcToReadyList(ptr);
-}
+} /* unblockZappers */
