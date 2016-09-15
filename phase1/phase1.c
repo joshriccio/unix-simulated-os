@@ -353,16 +353,22 @@ int join(int *status)
 
 
 /* ------------------------------------------------------------------------
-   Name - quit
-   Purpose - Stops the child process and notifies the parent of the death by
-             putting child quit info on the parents child completion code
-             list.
-   Parameters - the code to return to the grieving parent
-   Returns - nothing
-   Side Effects - changes the parent of pid child completion status list.
-   ------------------------------------------------------------------------ */
-void quit(int status)
-{
+|  Name - quit
+|
+|  Purpose - Stops the child process and notifies the parent of the death by
+|            putting child quit info on the parents child completion code
+|            list.
+|
+|  Parameters - the code to return to the grieving parent
+|
+|  Returns - nothing
+|
+|  Side Effects - changes the parent of pid child completion status list.
+*-------------------------------------------------------------------------- */
+void quit(int status) {
+    int currentPID; // the PID of the currently running process
+
+    /* Make sure PSR is in kernal mode */
     if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
         USLOSS_Console("quit(): called while in user mode, by process %d."
                        " Halting...\n", Current->pid);
@@ -374,11 +380,13 @@ void quit(int status)
     }
     disableInterrupts();
 
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("quit(): Quitting %s, status is %d.\n", 
                 Current->name, status);
+    }
 
-    if (Current->childProcPtr != NULL) { // The process has an active child
+    /* The process has an active child */
+    if (Current->childProcPtr != NULL) {
         USLOSS_Console("quit(): process %d, '%s', has active children."
                         " Halting...\n", Current->pid, Current->name);
         USLOSS_Halt(1);
@@ -388,6 +396,8 @@ void quit(int status)
     Current->status = QUIT;
     removeFromReadyList(Current);
 
+    /* For all processes that zapped this process, add to ready list and 
+     * set status to READY. */
     if (isZapped()) {
         procPtr ptr = Current->whoZapped;
         while (ptr != NULL) {
@@ -397,24 +407,25 @@ void quit(int status)
         }
     }
 
-    int currentPID;
-    // The process that is quitting is a child
+    /* The process that is quitting is a child and has its own quit child */
     if (Current->parentPtr != NULL && Current->quitChildPtr != NULL) {
-        // parent code
+
+        /* Clean up all children on child quit list */
         while (Current->quitChildPtr != NULL) {
             int childPID = Current->quitChildPtr->pid;
             removeFromQuitList(Current->quitChildPtr);
             zeroProcStruct(childPID);
         }
-        // child code
+
+        /* Clean up self and activate parent */
         Current->parentPtr->status = READY;
         removeFromChildList(Current);
         addToQuitChildList(Current->parentPtr);
         addProcToReadyList(Current->parentPtr);
-        printReadyList();
+        printReadyList();                        // only prints in debug mode
         currentPID = Current->pid;
-        //zeroProcStruct(Current->pid);
 
+    /* Process is only a child */
     } else if (Current->parentPtr != NULL) {
         addToQuitChildList(Current->parentPtr);
         removeFromChildList(Current);
@@ -422,8 +433,10 @@ void quit(int status)
            addProcToReadyList(Current->parentPtr);
            Current->parentPtr->status = READY;
         }
-        printReadyList();
-    } else {  // process is a parent
+        printReadyList();                        // only prints in debug mode
+
+    /* Process is a parent */
+    } else {
         while (Current->quitChildPtr != NULL) {
             int childPID = Current->quitChildPtr->pid;
             removeFromQuitList(Current->quitChildPtr);
@@ -433,8 +446,9 @@ void quit(int status)
         zeroProcStruct(Current->pid);
     }
     p1_quit(currentPID);
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         dumpProcesses();
+    }
     dispatcher();
 } /* quit */
 
