@@ -25,7 +25,6 @@ void addProcToReadyList(procPtr proc);
 void printReadyList();
 int getProcSlot();
 void zeroProcStruct(int pid);
-procPtr firstChildWithStatus(procPtr parent, int status);
 void removeFromChildList(procPtr process);
 void removeFromQuitList(procPtr process);
 void clock_handler();
@@ -39,6 +38,7 @@ int isBlocked(int index);
 int zap(int pid);
 int isZapped();
 void removeFromReadyList(procPtr process);
+void unblockZappers(procPtr ptr);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -411,12 +411,13 @@ void quit(int status) {
     /* For all processes that zapped this process, add to ready list and 
      * set status to READY. */
     if (isZapped()) {
-        procPtr ptr = Current->whoZapped;
+        /*procPtr ptr = Current->whoZapped;
         while (ptr != NULL) {
             ptr->status = READY;
             addProcToReadyList(ptr);
             ptr = ptr->nextWhoZapped;
-        }
+        }*/
+        unblockZappers(Current->whoZapped);
     }
 
     /* The process that is quitting is a child and has its own quit child */
@@ -834,32 +835,6 @@ void zeroProcStruct(int pid) {
     ProcTable[index].zapped = 0;
 } /* zeroProcStruct */
 
-/*-------------------------firstChildWithStatus---------------------
-| firstChildWithStatus
-|
-|  Purpose:  Finds first child with matching status passed in|
-|
-|  Parameters:
-|            procPtr parent - the parent of the children
-|            int status     - the status to search for
-|
-|  Returns:  procPtr
-|
-|  Side Effects:  none
-*-------------------------------------------------------------------*/
-procPtr firstChildWithStatus(procPtr parent, int status) {
-    if (parent->childProcPtr != NULL) { // parent has a child
-        procPtr child = parent->childProcPtr;
-        while(child != NULL) {
-            if (child->status == status) {
-                return child;
-            }
-            child = child->nextSiblingPtr;
-        }
-    }
-    return NULL;
-}/* firstChildWithStatus */
-
 /*---------------------------- dumpProcesses -----------------------
 n dumpProcesses
 |
@@ -1121,3 +1096,12 @@ void removeFromReadyList(procPtr process) {
                        " ReadyList.\n", process->pid);
     }
 }/* removeFromReadyList */
+
+void unblockZappers(procPtr ptr) {
+    if (ptr == NULL) {
+        return;
+    }
+    unblockZappers(ptr->nextWhoZapped);
+    ptr->status = READY;
+    addProcToReadyList(ptr);
+}
