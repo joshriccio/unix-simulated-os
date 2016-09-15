@@ -156,7 +156,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Halt(1);
     }
     if (DEBUG && debugflag) {
-        USLOSS_Console("fork1(): Process %s is disabling interrupts.\n", name);
+        USLOSS_Console("fork1(): Process %s is disabling interrupts.\n", 
+                name);
     }
     disableInterrupts();
 
@@ -168,8 +169,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     if ((nextPid != SENTINELPID) && (priority > MINPRIORITY || 
                               priority < MAXPRIORITY)) {
         if (DEBUG && debugflag) {
-            USLOSS_Console("fork1(): Process %s priority is out of bounds!\n", 
-                           name);
+            USLOSS_Console("fork1(): Process %s priority is out of "
+                    "bounds!\n", name);
         }
         return -1;
     }
@@ -218,8 +219,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     ProcTable[procSlot].priority = priority;
 
     /* set parent, child, and sibling pointers */
-    if (Current != NULL) {                     // Current is the parent process
-        if (Current->childProcPtr == NULL) {   // Current has no children
+    if (Current != NULL) {                    // Current is the parent process
+        if (Current->childProcPtr == NULL) {  // Current has no children
             Current->childProcPtr = &ProcTable[procSlot];
         } else {  // Current has children
             procPtr child = Current->childProcPtr;
@@ -233,9 +234,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     } 
     ProcTable[procSlot].parentPtr = Current; // value could be NULL
     
-    /* Initialize context for this process, but use launch function pointer for
-     * the initial value of the process's program counter (PC)
-     */
+    /* Initialize context for this process, but use launch function pointer 
+     * for the initial value of the process's program counter (PC) */
     USLOSS_ContextInit(&(ProcTable[procSlot].state), USLOSS_PsrGet(),
                        ProcTable[procSlot].stack,
                        ProcTable[procSlot].stackSize,
@@ -288,33 +288,39 @@ void launch()
 
 
 /* ------------------------------------------------------------------------
-   Name - join
-   Purpose - Wait for a child process (if one has been forked) to quit.  If 
-             one has already quit, don't wait.
-   Parameters - a pointer to an int where the termination code of the 
-                quitting process is to be stored.
-   Returns - the process id of the quitting child joined on.
-             -1 if the process was zapped in the join
-             -2 if the process has no children
-   Side Effects - If no child process has quit before join is called, the 
-                  parent is removed from the ready list and blocked.
-   ------------------------------------------------------------------------ */
-int join(int *status)
-{
+|  Name - join
+|  Purpose - Wait for a child process (if one has been forked) to quit.  If 
+|            one has already quit, don't wait.
+|
+|  Parameters - a pointer to an int where the termination code of the 
+|               quitting process is to be stored.
+|
+|  Returns - the process id of the quitting child joined on.
+|            -1 if the process was zapped in the join
+|            -2 if the process has no children
+|
+|  Side Effects - If no child process has quit before join is called, the 
+|                 parent is removed from the ready list and blocked.
+*-------------------------------------------------------------------------- */
+int join(int *status) {
+    int childPID = -3;  // The child PID to return
+    procPtr child;      // The child this process is joinging with
+
+    /* Make sure PSR is in kernal mode */
     if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
         USLOSS_Console("join(): called while in user mode, by process %d."
                        " Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
+
+    /* Disable Interrupts */
     if (DEBUG && debugflag) {
         USLOSS_Console("join(): Process %s is disabling interrupts.\n", 
                        Current->name);
     }
     disableInterrupts();
     
-    int childPID = -3;
-    procPtr child;
-    // Process has no children
+    /* Process has no children */
     if (Current->childProcPtr == NULL && Current->quitChildPtr == NULL) {
         if (DEBUG && debugflag)
             USLOSS_Console("join(): Process %s has no children.\n", 
@@ -322,7 +328,7 @@ int join(int *status)
         return -2;
     }
 
-    // Process has a child but without a status of quitldPtr;
+    /* No children has called quit */
     if (Current->quitChildPtr == NULL) { 
         Current->status = JOIN_BLOCKED;
         removeFromReadyList(Current);
@@ -333,7 +339,8 @@ int join(int *status)
         }
         dispatcher();
     }
-    // A child has quit and reactivated the parent
+
+    /* A child has quit and reactivated the parent */
     child = Current->quitChildPtr;
     if (DEBUG && debugflag) {
         USLOSS_Console("join(): Child %s has status of quit.\n", child->name);
@@ -344,7 +351,8 @@ int join(int *status)
     *status = child->quitStatus;
     removeFromQuitList(child);
     zeroProcStruct(childPID);
-    //Process was zapped while JOIN_BLOCKED 
+
+    /* Process was zapped while JOIN_BLOCKED */
     if(isZapped()){
         return -1;
     }
