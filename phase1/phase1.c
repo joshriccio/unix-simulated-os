@@ -257,14 +257,18 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     return ProcTable[procSlot].pid;
 } /* fork1 */
 
-/* ------------------------------------------------------------------------
-   Name - launch
-   Purpose - Dummy function to enable interrupts and launch a given process
-             upon startup.
-   Parameters - none
-   Returns - nothing
-   Side Effects - enable interrupts
-   ------------------------------------------------------------------------ */
+/*-------------------------------------------------------------------------
+|  Name - launch
+|
+|  Purpose - Dummy function to enable interrupts and launch a given process
+|            upon startup.
+|
+|  Parameters - none
+|
+|  Returns - nothing
+|
+|  Side Effects - enable interrupts
+*-------------------------------------------------------------------------- */
 void launch()
 {
     int result;
@@ -460,9 +464,27 @@ void quit(int status) {
     dispatcher();
 } /* quit */
 
-// zap
+/* ------------------------------------------------------------------------
+|  Name - zap
+|
+|  Purpose - Marks a process pid as being zapped. zape does not return until
+|            the zapped process has called quit. USLOSS will halt if a 
+|            process tries to zap itself or attempts to zap a nonexistent
+|            process.
+|
+|  Parameters - pid (IN) - The process to mark as zapped. 
+|
+|  Returns - 0: The zapped process has called quit.
+|           -1: The calling process itself was zapped while in zap.
+|
+|  Side Effects - The process being zapped zapped marker is set to true.
+|                 The process calling zap is added to the zapped process's
+|                 list of processes that have zapped it.
+*-------------------------------------------------------------------------- */
 int zap(int pid) {
-    procPtr zapPtr;
+    procPtr zapPtr; // The process to zap
+
+    /* Make sure PSR is in kernal mode */
     if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
         USLOSS_Console("zap(): called while in user mode, by process %d."
                        " Halting...\n", Current->pid);
@@ -474,11 +496,14 @@ int zap(int pid) {
     }
     disableInterrupts();
 
+    /* Current process tried to zap itself */
     if(Current->pid == pid) {
         USLOSS_Console("zap(): process %d tried to zap itself."
                        "  Halting...\n", pid);
         USLOSS_Halt(1);
     }
+
+    /* Process to zap does not exist */
     if (ProcTable[pid % MAXPROC].status == EMPTY || 
             ProcTable[pid % MAXPROC].pid != pid) {
 
@@ -487,23 +512,29 @@ int zap(int pid) {
         USLOSS_Halt(1);
     }
    
-    //Added do to test34 restrictions
+    /* Process to zap has finished running, but is still waiting for parent */
     if (ProcTable[pid % MAXPROC].status == QUIT) {
-        if (DEBUG && debugflag)
-            USLOSS_Console("zap(): process being zapped has quit but not joined.\n");
-        //Added because of test35 restrictions
+        if (DEBUG && debugflag) {
+            USLOSS_Console("zap(): process being zapped has quit but not"
+                    " joined.\n");
+        }
+
+        /* Process was zapped by another process */
         if (isZapped()) {
             return -1;
         }   
      return 0;
     }
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("zap(): Process %d is zapping process %d.\n",
                 Current->pid, pid);
+    }
     Current->status = ZAP_BLOCKED;
     removeFromReadyList(Current);
     zapPtr = &ProcTable[pid % MAXPROC];
     zapPtr->zapped = 1;
+
+    /* Add this process to the list of process who have zapped the process */
     if (zapPtr->whoZapped == NULL) {
         zapPtr->whoZapped = Current;
     } else {
@@ -608,8 +639,6 @@ int sentinel (char *dummy) {
     }
 } /* sentinel */
 
-
-/* check to determine if deadlock has occurred... */
 /* ------------------------------------------------------------------------
 |  Name - checkDeadlock
 |
@@ -649,7 +678,6 @@ static void checkDeadlock(){
     USLOSS_Console("All processes completed.\n");
     USLOSS_Halt(0);
 } /* checkDeadlock */
-
 
 /*
  * Disables the interrupts.
@@ -807,7 +835,7 @@ void zeroProcStruct(int pid) {
 } /* zeroProcStruct */
 
 /*-------------------------firstChildWithStatus---------------------
-n firstChildWithStatus
+| firstChildWithStatus
 |
 |  Purpose:  Finds first child with matching status passed in|
 |
