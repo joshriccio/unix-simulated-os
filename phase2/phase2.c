@@ -9,14 +9,20 @@
 #include <phase1.h>
 #include <phase2.h>
 #include <usloss.h>
+#include <stdlib.h>
 
 #include "message.h"
 
 /* ------------------------- Prototypes ----------------------------------- */
 int start1 (char *);
 extern int start2 (char *);
-
-
+void check_kernel_mode(char * processName);
+void disableInterrupts();
+void enableInterrupts();
+int check_io();
+void zeroMailbox(int mboxID);
+void zeroSlot(int slotID);
+void zeroMboxProc(int pid);
 /* -------------------------- Globals ------------------------------------- */
 
 int debugflag2 = 0;
@@ -24,6 +30,9 @@ int debugflag2 = 0;
 // the mail boxes 
 mailbox MailBoxTable[MAXMBOX];
 
+mailSlot SlotTable[MAXSLOTS];
+
+mboxProc MboxProcTable[MAXPROC];
 // also need array of mail slots, array of function ptrs to system call 
 // handlers, ...
 
@@ -42,6 +51,9 @@ mailbox MailBoxTable[MAXMBOX];
    ----------------------------------------------------------------------- */
 int start1(char *arg)
 {
+    int kid_pid;
+    int status;
+
     if (DEBUG2 && debugflag2)
         USLOSS_Console("start1(): at beginning\n");
 
@@ -50,7 +62,21 @@ int start1(char *arg)
     // Disable interrupts
     disableInterrupts();
 
-    // Initialize the mail box table, slots, & other data structures.
+    // Initialize the mail box table
+    for (int i = 0; i < MAXMBOX; i++) {
+        MailBoxTable[i].mboxID = i;
+        zeroMailbox(i);
+    }
+    // slots
+    for (int i = 0; i < MAXSLOTS; i++) {
+        SlotTable[i].slotID = i;
+        zeroSlot(i);
+    }
+    // process table
+    for (int i = 0; i < MAXPROC; i++) {
+        zeroMboxProc(i);
+    }
+
     // Initialize USLOSS_IntVec and system call handlers,
     // allocate mailboxes for interrupt handlers.  Etc... 
 
@@ -78,8 +104,8 @@ int start1(char *arg)
              mailbox id.
    Side Effects - initializes one element of the mail box array. 
    ----------------------------------------------------------------------- */
-int MboxCreate(int slots, int slot_size)
-{
+int MboxCreate(int slots, int slot_size) {
+    return -1;
 } /* MboxCreate */
 
 
@@ -91,8 +117,8 @@ int MboxCreate(int slots, int slot_size)
    Returns - zero if successful, -1 if invalid args.
    Side Effects - none.
    ----------------------------------------------------------------------- */
-int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
-{
+int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
+    return -1;
 } /* MboxSend */
 
 
@@ -105,6 +131,47 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
    Returns - actual size of msg if successful, -1 if invalid args.
    Side Effects - none.
    ----------------------------------------------------------------------- */
-int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
-{
+int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
+    return -1;
 } /* MboxReceive */
+
+void check_kernel_mode(char * processName) {
+    if((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
+        USLOSS_Console("check_kernal_mode(): called while in user mode, by"
+                " process %s. Halting...\n", processName);
+        USLOSS_Halt(1);
+    } 
+}
+
+void enableInterrupts() {
+    USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
+}
+
+/*
+ * Disables the interrupts.
+ */
+void disableInterrupts() {
+    USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
+} /* disableInterrupts */
+
+int check_io() {
+    return 0;
+}
+
+void zeroMailbox(int mboxID) {
+    MailBoxTable[mboxID].numSlots = -1;
+    MailBoxTable[mboxID].slotList = NULL;
+    MailBoxTable[mboxID].isEmpty = 1;
+}
+
+void zeroSlot(int slotID) {
+    SlotTable[slotID].mboxID = -1;
+    SlotTable[slotID].status = -1;
+    SlotTable[slotID].nextSlot = NULL;
+}
+
+void zeroMboxProc(int pid) {
+   MboxProcTable[pid % MAXPROC].pid = -1; 
+   MboxProcTable[pid % MAXPROC].zapped = -1; 
+   MboxProcTable[pid % MAXPROC].status = -1; 
+}

@@ -1,19 +1,29 @@
-
 #define DEBUG2 1
 
-typedef struct mailSlot *slotPtr;
 typedef struct mailbox   mailbox;
+typedef struct mboxProc  mboxProc;
+typedef struct mailSlot  mailSlot;
+typedef struct mailSlot *slotPtr;
 typedef struct mboxProc *mboxProcPtr;
+
+struct mboxProc {
+    short pid;
+    int zapped;
+    int status;
+};
 
 struct mailbox {
     int       mboxID;
-    // other items as needed...
+    int       numSlots;
+    slotPtr   slotList;
+    int       isEmpty;
 };
 
 struct mailSlot {
+    int       slotID;
     int       mboxID;
     int       status;
-    // other items as needed...
+    slotPtr   nextSlot;
 };
 
 struct psrBits {
