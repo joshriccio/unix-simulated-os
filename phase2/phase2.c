@@ -105,6 +105,24 @@ int start1(char *arg)
    Side Effects - initializes one element of the mail box array. 
    ----------------------------------------------------------------------- */
 int MboxCreate(int slots, int slot_size) {
+    check_kernel_mode("MboxCreate");
+    disableInterrupts();
+
+    // slots should be a positive integer
+    if (slots < 0) {
+        return -1;
+    }
+
+    for (int i = 0; i < MAXMBOX; i++) {
+        if (MailBoxTable[i].status) {
+            MailBoxTable[i].numSlots = slots;
+            MailBoxTable[i].slotSize = slot_size;
+            MailBoxTable[i].status = USED;
+            enableInterrupts();
+            return i;
+        }
+    }
+    enableInterrupts();
     return -1;
 } /* MboxCreate */
 
@@ -118,6 +136,52 @@ int MboxCreate(int slots, int slot_size) {
    Side Effects - none.
    ----------------------------------------------------------------------- */
 int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
+    check_kernel_mode("MboxSend");
+    disableInterrupts();
+
+    // error check parameters
+    if (mbox_id > MAXMBOX || mbox_id < 0) {
+        return -1;
+    }
+
+    mailboxPtr mbptr = &MailBoxTable[mbox_id];
+
+    if (msg_size > mbptr->slotSize) {
+        return -1;
+    }
+
+    // Add process to Process Table
+    int pid = getPid();
+    MboxProcTable[pid % MAXPROC].pid = pid;
+    MboxProcTable[pid % MAXPROC].status = USED;
+
+    // Block if no available slots. Add to next blockSendList
+    if (mbptr->numSlots >= mbptr->slotsUsed) {
+        blockMe(SEND_BLOCK);
+        if (mbptr->blockSendList == NULL) {
+            mbptr->blockSendList = &MboxProcTable[pid % MAXPROC];
+        } else {
+            mboxProcPtr temp = mbptr->blockSendList;
+            while (temp->nextBlockSend != NULL) {
+                temp = nextBlockSend;
+            }
+            temp->nextBlockSend = &MboxProcTable[pid % MAXPROC];
+        }
+    }
+    
+    // find an empty slot in SlotTable
+    int slot;
+    for (int i = 0; i < MAXSLOTS; i++) {
+        if (SlotTable[i].status == EMPTY) {
+           slot = i;
+           break;
+        }
+    }
+
+    // check if process blocked on reveive
+
+
+    enableInterrupts();
     return -1;
 } /* MboxSend */
 
@@ -160,18 +224,22 @@ int check_io() {
 
 void zeroMailbox(int mboxID) {
     MailBoxTable[mboxID].numSlots = -1;
+    MailBoxTable[mboxID].slotsUsed = -1;
+    MailBoxTable[mboxID].slotSize = -1;
+    MailBoxTable[mboxID].blockSendList = NULL;
+    MailBoxTable[mboxID].blockRecvList = NULL;
     MailBoxTable[mboxID].slotList = NULL;
-    MailBoxTable[mboxID].isEmpty = 1;
+    MailBoxTable[mboxID].status = EMPTY;
 }
 
 void zeroSlot(int slotID) {
     SlotTable[slotID].mboxID = -1;
-    SlotTable[slotID].status = -1;
+    SlotTable[slotID].status = EMPTY;
     SlotTable[slotID].nextSlot = NULL;
 }
 
 void zeroMboxProc(int pid) {
    MboxProcTable[pid % MAXPROC].pid = -1; 
    MboxProcTable[pid % MAXPROC].zapped = -1; 
-   MboxProcTable[pid % MAXPROC].status = -1; 
+   MboxProcTable[pid % MAXPROC].status = EMPTY; 
 }

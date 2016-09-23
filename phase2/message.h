@@ -1,8 +1,14 @@
 #define DEBUG2 1
+#define EMPTY 0
+#define USED 1
+
+#define SEND_BLOCK 11
+#define RECV_BLOCK 12
 
 typedef struct mailbox   mailbox;
 typedef struct mboxProc  mboxProc;
 typedef struct mailSlot  mailSlot;
+typedef struct mailbox  *mailboxPtr;
 typedef struct mailSlot *slotPtr;
 typedef struct mboxProc *mboxProcPtr;
 
@@ -10,19 +16,26 @@ struct mboxProc {
     short pid;
     int zapped;
     int status;
+    mboxProcPtr nextBlockSend;
+    mboxProcPtr nextBlockRecv;
 };
 
 struct mailbox {
     int       mboxID;
     int       numSlots;
+    int       slotsUsed;
+    int       slotSize;
+    mboxProcPtr blockSendList;
+    mboxProcPtr blockRecvList;
     slotPtr   slotList;
-    int       isEmpty;
+    int       status;
 };
 
 struct mailSlot {
     int       slotID;
     int       mboxID;
     int       status;
+    void *    message;
     slotPtr   nextSlot;
 };
 
