@@ -24,6 +24,7 @@ int check_io();
 void zeroMailbox(int mboxID);
 void zeroSlot(int slotID);
 void zeroMboxProc(int pid);
+int MboxRelease(int mailboxID);
 /* -------------------------- Globals ------------------------------------- */
 
 int debugflag2 = 0;
@@ -176,6 +177,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
             temp->nextBlockSend = &MboxProcTable[pid % MAXPROC];
         }
         blockMe(SEND_BLOCK);
+        // return -3 if mailbox released
     }
 
     // check if process on recieve block list
@@ -271,6 +273,7 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
             temp->nextBlockRecv = &MboxProcTable[pid % MAXPROC];
         }
         blockMe(RECV_BLOCK);
+        // return -3 if mailbox released
         enableInterrupts();
         return MboxProcTable[pid % MAXPROC].msgSize;
     } else {
@@ -294,6 +297,31 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
         return msgSize;
     }
 } /* MboxReceive */
+
+int MboxRelease(int mailboxID) {
+    if (mailboxID < 0 || mailboxID >= MAXMBOX) {
+        return -1;
+    }
+    if (MailBoxTable[mailboxID].status == EMPTY) {
+        return -1;
+    }
+
+    mailboxPtr mbptr = &MailBoxTable[mailboxID];
+
+    if (mbptr->blockSendList == NULL && mbptr->blockRecvList == NULL) {
+        zeroMailbox(mailboxID);
+        return 0;
+    } else {
+        while (mbptr->blockSendList != NULL) {
+            mbptr->blockSendList->mboxReleased = 1;
+            int pid = mbptr->blockSendList->pid;
+            mbptr->blockSendList = mbptr->blockSendList->nextBlockSend;
+            unblockProc(pid);
+        }
+        //TODO: copy above code for receive list
+    }
+    return 0;
+}
 
 void check_kernel_mode(char * processName) {
     if((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
@@ -337,4 +365,9 @@ void zeroSlot(int slotID) {
 void zeroMboxProc(int pid) {
    MboxProcTable[pid % MAXPROC].pid = -1; 
    MboxProcTable[pid % MAXPROC].status = EMPTY; 
+   MboxProcTable[pid % MAXPROC].message = NULL; 
+   MboxProcTable[pid % MAXPROC].msgSize = -1; 
+   MboxProcTable[pid % MAXPROC].mboxReleased = 0; 
+   MboxProcTable[pid % MAXPROC].nextBlockSend = NULL; 
+   MboxProcTable[pid % MAXPROC].nextBlockRecv = NULL; 
 }

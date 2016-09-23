@@ -18,6 +18,7 @@ struct mboxProc {
     int status;
     void * message;
     int msgSize;
+    int mboxReleased;
     mboxProcPtr nextBlockSend;
     mboxProcPtr nextBlockRecv;
 };
