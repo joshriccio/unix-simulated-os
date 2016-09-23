@@ -1,6 +1,7 @@
 #define DEBUG2 1
 #define EMPTY 0
 #define USED 1
+#define ACTIVE 1
 
 #define SEND_BLOCK 11
 #define RECV_BLOCK 12
@@ -14,8 +15,9 @@ typedef struct mboxProc *mboxProcPtr;
 
 struct mboxProc {
     short pid;
-    int zapped;
     int status;
+    void * message;
+    int msgSize;
     mboxProcPtr nextBlockSend;
     mboxProcPtr nextBlockRecv;
 };
@@ -36,6 +38,7 @@ struct mailSlot {
     int       mboxID;
     int       status;
     void *    message;
+    int       msgSize;
     slotPtr   nextSlot;
 };
 
