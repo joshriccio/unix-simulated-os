@@ -25,6 +25,9 @@ void zeroMailbox(int mboxID);
 void zeroSlot(int slotID);
 void zeroMboxProc(int pid);
 int MboxRelease(int mailboxID);
+int MboxCondSend(int mailboxID, void *message, int messageSize);
+int MboxCondReceive(int mailboxID, void *message,int maxMessageSize);
+int waitDevice(int type, int unit, int *status);
 /* -------------------------- Globals ------------------------------------- */
 
 int debugflag2 = 0;
@@ -177,7 +180,10 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
             temp->nextBlockSend = &MboxProcTable[pid % MAXPROC];
         }
         blockMe(SEND_BLOCK);
-        // return -3 if mailbox released
+        if(MboxProcTable[pid % MAXPROC].mboxReleased){
+          enableInterrupts();  
+	  return -3;
+        }
     }
 
     // check if process on recieve block list
@@ -273,7 +279,10 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
             temp->nextBlockRecv = &MboxProcTable[pid % MAXPROC];
         }
         blockMe(RECV_BLOCK);
-        // return -3 if mailbox released
+        if(MboxProcTable[pid % MAXPROC].mboxReleased){
+           enableInterrupts(); 
+	   return -3;
+        }
         enableInterrupts();
         return MboxProcTable[pid % MAXPROC].msgSize;
     } else {
@@ -299,13 +308,13 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
 } /* MboxReceive */
 
 int MboxRelease(int mailboxID) {
+    //TODO Handle return of -3 if this processes is zapped while releasing
     if (mailboxID < 0 || mailboxID >= MAXMBOX) {
         return -1;
     }
     if (MailBoxTable[mailboxID].status == EMPTY) {
         return -1;
     }
-
     mailboxPtr mbptr = &MailBoxTable[mailboxID];
 
     if (mbptr->blockSendList == NULL && mbptr->blockRecvList == NULL) {
@@ -318,9 +327,52 @@ int MboxRelease(int mailboxID) {
             mbptr->blockSendList = mbptr->blockSendList->nextBlockSend;
             unblockProc(pid);
         }
-        //TODO: copy above code for receive list
+        while (mbptr->blockRecvList != NULL) {
+            mbptr->blockRecvList->mboxReleased = 1;
+            int pid = mbptr->blockRecvList->pid;
+            mbptr->blockRecvList = mbptr->blockRecvList->nextBlockRecv;
+            unblockProc(pid);
+        }
     }
     return 0;
+}
+
+//This is basically the same as mboxsend, except it doesnt block
+int MboxCondSend(int mailboxID, void *message, int messageSize){
+    //return -1 if illegal arguments are given 
+   
+    //If there is no empty slot in the mailbox, return -2 (do not block)
+
+    //If all mailbox slots are in use, return -2 (do not block)
+
+    //return -3 if this process is zapped
+
+    //return 0 if message sent successfully
+}
+
+int MboxCondReceive(int mailboxID, void *message,int maxMessageSize){
+    //return -1 if illegal arguments are given
+
+    //If there is no message in mailbox (mailbox empty), return -2 (do not block)
+
+    //return -3 if process was zapped while blocked on mailbox
+
+    //rturn 0 if message sent succesfully
+}
+
+int waitDevice(int type, int unit, int *status){
+    //Need to set up devices for this function
+
+    //Each device needs a zero slot mailbox (this is why Homer's
+    // first 7 are reserved)
+
+    //Do a receive on mailbox that matches type
+
+    //copy the devices status into *status
+
+    //return -1 if zapped
+
+    //return 0 if successful
 }
 
 void check_kernel_mode(char * processName) {
