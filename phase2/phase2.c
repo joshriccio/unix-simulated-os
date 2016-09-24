@@ -348,6 +348,7 @@ int MboxCondSend(int mailboxID, void *message, int messageSize){
     //return -3 if this process is zapped
 
     //return 0 if message sent successfully
+    return -1;
 }
 
 int MboxCondReceive(int mailboxID, void *message,int maxMessageSize){
@@ -358,6 +359,7 @@ int MboxCondReceive(int mailboxID, void *message,int maxMessageSize){
     //return -3 if process was zapped while blocked on mailbox
 
     //rturn 0 if message sent succesfully
+    return -1;
 }
 
 int waitDevice(int type, int unit, int *status){
@@ -373,6 +375,7 @@ int waitDevice(int type, int unit, int *status){
     //return -1 if zapped
 
     //return 0 if successful
+    return -1;
 }
 
 void check_kernel_mode(char * processName) {
