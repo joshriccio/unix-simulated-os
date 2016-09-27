@@ -123,7 +123,7 @@ int MboxCreate(int slots, int slot_size) {
         return -1;
     }
 
-    for (int i = 0; i < MAXMBOX; i++) {
+    for (int i = 7; i < MAXMBOX; i++) {
         if (MailBoxTable[i].status == EMPTY) {
             MailBoxTable[i].numSlots = slots;
             MailBoxTable[i].slotsUsed = 0;
@@ -182,7 +182,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
         blockMe(SEND_BLOCK);
         if(MboxProcTable[pid % MAXPROC].mboxReleased){
           enableInterrupts();  
-	  return -3;
+          return -3;
         }
     }
 
@@ -198,22 +198,27 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
         mbptr->blockRecvList = mbptr->blockRecvList->nextBlockRecv;
         unblockProc(recvPid);
         enableInterrupts();
-        return 0;
+        return isZapped() ? -3 : 0;
     }
     
     // find an empty slot in SlotTable
     int slot;
-    for (int i = 0; i < MAXSLOTS; i++) {
+    int i;
+    for (i = 0; i < MAXSLOTS; i++) {
         if (SlotTable[i].status == EMPTY) {
            slot = i;
            break;
         }
     }
+    if (i == MAXSLOTS) {
+        USLOSS_Console("MboxCondSend(): No slots in system. Halting...\n");
+        USLOSS_Halt(1);
+    }
 
     // initialize slot
     SlotTable[slot].mboxID = mbptr->mboxID;
     SlotTable[slot].status = USED;
-    SlotTable[slot].message = msg_ptr;
+    memcpy(SlotTable[slot].message, msg_ptr, msg_size);
     SlotTable[slot].msgSize = msg_size;
 
     // place found slot on slotList
@@ -230,7 +235,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
     mbptr->slotsUsed++;
 
     enableInterrupts();
-    return 0;
+    return isZapped() ? -3 : 0;
 } /* MboxSend */
 
 
@@ -279,9 +284,9 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
             temp->nextBlockRecv = &MboxProcTable[pid % MAXPROC];
         }
         blockMe(RECV_BLOCK);
-        if(MboxProcTable[pid % MAXPROC].mboxReleased){
+        if(MboxProcTable[pid % MAXPROC].mboxReleased || isZapped()){
            enableInterrupts(); 
-	   return -3;
+           return -3;
         }
         enableInterrupts();
         return MboxProcTable[pid % MAXPROC].msgSize;
@@ -303,23 +308,28 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
             unblockProc(pid);
         }
         enableInterrupts();
-        return msgSize;
+        return isZapped() ? -3 : msgSize;
     }
 } /* MboxReceive */
 
 int MboxRelease(int mailboxID) {
-    //TODO Handle return of -3 if this processes is zapped while releasing
+    check_kernel_mode("MboxSend");
+    disableInterrupts();
+
     if (mailboxID < 0 || mailboxID >= MAXMBOX) {
+        enableInterrupts();
         return -1;
     }
     if (MailBoxTable[mailboxID].status == EMPTY) {
+        enableInterrupts();
         return -1;
     }
     mailboxPtr mbptr = &MailBoxTable[mailboxID];
 
     if (mbptr->blockSendList == NULL && mbptr->blockRecvList == NULL) {
         zeroMailbox(mailboxID);
-        return 0;
+        enableInterrupts();
+        return isZapped() ? -3 : 0;
     } else {
         while (mbptr->blockSendList != NULL) {
             mbptr->blockSendList->mboxReleased = 1;
@@ -334,21 +344,87 @@ int MboxRelease(int mailboxID) {
             unblockProc(pid);
         }
     }
-    return 0;
+    enableInterrupts();
+    return isZapped() ? -3 : 0;
 }
 
 //This is basically the same as mboxsend, except it doesnt block
-int MboxCondSend(int mailboxID, void *message, int messageSize){
-    //return -1 if illegal arguments are given 
-   
-    //If there is no empty slot in the mailbox, return -2 (do not block)
+int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
+    check_kernel_mode("MboxSend");
+    disableInterrupts();
 
-    //If all mailbox slots are in use, return -2 (do not block)
+    // error check parameters
+    if (mbox_id > MAXMBOX || mbox_id < 0) {
+        enableInterrupts();
+        return -1;
+    }
 
-    //return -3 if this process is zapped
+    mailboxPtr mbptr = &MailBoxTable[mbox_id];
 
-    //return 0 if message sent successfully
-    return -1;
+    if (msg_size > mbptr->slotSize) {
+        enableInterrupts();
+        return -1;
+    }
+
+    // Add process to Process Table
+    int pid = getpid();
+    MboxProcTable[pid % MAXPROC].pid = pid;
+    MboxProcTable[pid % MAXPROC].status = ACTIVE;
+
+    // No empty slots in mailbox or no slots in system
+    if (mbptr->numSlots == mbptr->slotsUsed) {
+        return -2;
+    }
+
+    // check if process on recieve block list
+    if (mbptr->blockRecvList != NULL) {
+        if (msg_size > mbptr->blockRecvList->msgSize) {
+            enableInterrupts();
+            return -1;
+        }
+        memcpy(mbptr->blockRecvList->message, msg_ptr, msg_size);
+        mbptr->blockRecvList->msgSize = msg_size;
+        int recvPid = mbptr->blockRecvList->pid;
+        mbptr->blockRecvList = mbptr->blockRecvList->nextBlockRecv;
+        unblockProc(recvPid);
+        enableInterrupts();
+        return isZapped() ? -3 : 0;
+    }
+    
+    // find an empty slot in SlotTable
+    int slot;
+    int i;
+    for (i = 0; i < MAXSLOTS; i++) {
+        if (SlotTable[i].status == EMPTY) {
+           slot = i;
+           break;
+        }
+    }
+    if (i == MAXSLOTS) {
+        return -2;
+    }
+
+    // initialize slot
+    SlotTable[slot].mboxID = mbptr->mboxID;
+    SlotTable[slot].status = USED;
+    memcpy(SlotTable[slot].message, msg_ptr, msg_size);
+    SlotTable[slot].msgSize = msg_size;
+
+    // place found slot on slotList
+    slotPtr temp = mbptr->slotList;
+    if (temp == NULL) {
+        mbptr->slotList = &SlotTable[slot];
+    } else {
+        while (temp->nextSlot != NULL) {
+            temp = temp->nextSlot;
+        }
+        temp->nextSlot = &SlotTable[slot];
+    }
+
+    mbptr->slotsUsed++;
+
+    enableInterrupts();
+    return isZapped() ? -3 : 0;
 }
 
 int MboxCondReceive(int mailboxID, void *message,int maxMessageSize){
