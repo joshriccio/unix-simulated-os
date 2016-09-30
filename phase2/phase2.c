@@ -374,7 +374,7 @@ int MboxRelease(int mailboxID) {
 
 //This is basically the same as mboxsend, except it doesnt block
 int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
-    check_kernel_mode("MboxSend");
+    check_kernel_mode("MboxCondSend");
     disableInterrupts();
 
     // error check parameters
@@ -385,7 +385,7 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
 
     mailboxPtr mbptr = &MailBoxTable[mbox_id];
 
-    if (msg_size > mbptr->slotSize) {
+    if (mbptr->numSlots != 0 && msg_size > mbptr->slotSize) {
         enableInterrupts();
         return -1;
     }
@@ -396,8 +396,13 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
     MboxProcTable[pid % MAXPROC].status = ACTIVE;
 
     // No empty slots in mailbox or no slots in system
-    if (mbptr->numSlots == mbptr->slotsUsed) {
+    if (mbptr->numSlots != 0 && mbptr->numSlots == mbptr->slotsUsed) {
         return -2;
+    }
+
+    // zero lost mailbox and no process blocked on recveive list
+    if (mbptr->blockRecvList == NULL && mbptr->numSlots == 0) {
+        return -1;
     }
 
     // check if process on recieve block list
@@ -452,13 +457,6 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
 }
 
 int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
-    //return -1 if illegal arguments are given
-
-    //If there is no message in mailbox (mailbox empty), return -2 (do not block)
-
-    //return -3 if process was zapped while blocked on mailbox
-
-    //rturn 0 if message sent succesfully
     check_kernel_mode("MboxReceive");
     disableInterrupts();
 
