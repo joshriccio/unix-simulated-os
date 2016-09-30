@@ -28,6 +28,11 @@ int MboxRelease(int mailboxID);
 int MboxCondSend(int mailboxID, void *message, int messageSize);
 int MboxCondReceive(int mailboxID, void *message,int maxMessageSize);
 int waitDevice(int type, int unit, int *status);
+void nullsys(systemArgs *args);
+void clockHandler2(int dev, long unit);
+void diskHandler(int dev, long unit);
+void termHandler(int dev, long unit);
+void syscallHandler(int dev, long unit);
 /* -------------------------- Globals ------------------------------------- */
 
 int debugflag2 = 0;
@@ -40,7 +45,9 @@ mailSlot SlotTable[MAXSLOTS];
 mboxProc MboxProcTable[MAXPROC];
 // also need array of mail slots, array of function ptrs to system call 
 // handlers, ...
+void (*systemCallVec[MAXSYSCALLS])(systemArgs *args);
 
+int clockCounter = 0;
 
 
 
@@ -89,6 +96,15 @@ int start1(char *arg)
     }
 
     // Initialize USLOSS_IntVec and system call handlers,
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clockHandler2;
+    USLOSS_IntVec[USLOSS_DISK_INT] = diskHandler;
+    USLOSS_IntVec[USLOSS_TERM_INT] = termHandler;
+    USLOSS_IntVec[USLOSS_SYSCALL_INT] = syscallHandler;
+
+    for (int i = 0; i < MAXSYSCALLS; i++) {
+        systemCallVec[i] = nullsys;
+    }
+
     // allocate mailboxes for interrupt handlers.  Etc... 
 
     enableInterrupts();
@@ -342,12 +358,14 @@ int MboxRelease(int mailboxID) {
             int pid = mbptr->blockSendList->pid;
             mbptr->blockSendList = mbptr->blockSendList->nextBlockSend;
             unblockProc(pid);
+            disableInterrupts();
         }
         while (mbptr->blockRecvList != NULL) {
             mbptr->blockRecvList->mboxReleased = 1;
             int pid = mbptr->blockRecvList->pid;
             mbptr->blockRecvList = mbptr->blockRecvList->nextBlockRecv;
             unblockProc(pid);
+            disableInterrupts();
         }
     }
     enableInterrupts();
@@ -491,19 +509,36 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
 }
 
 int waitDevice(int type, int unit, int *status){
-    //Need to set up devices for this function
+    check_kernel_mode("MboxReceive");
+    disableInterrupts();
 
-    //Each device needs a zero slot mailbox (this is why Homer's
-    // first 7 are reserved)
+    int returnCode;
+    int deviceID;
+    int clockID = 0;
+    int diskID[] = {1, 2};
+    int termID[] = {3, 4, 5, 6};
 
-    //Do a receive on mailbox that matches type
-
-    //copy the devices status into *status
-
-    //return -1 if zapped
-
-    //return 0 if successful
-    return -1;
+    switch (type) {
+        case USLOSS_CLOCK_INT:
+            deviceID = clockID;
+            break;
+        case USLOSS_DISK_INT:
+            if (unit >  1 || unit < 0) {
+                USLOSS_Console("waitDevice(): invalid unit\n");
+            }
+            deviceID = diskID[unit];
+            break;
+        case USLOSS_TERM_INT:
+            if (unit >  3 || unit < 0) {
+                USLOSS_Console("waitDevice(): invalid unit\n");
+            }
+            deviceID = termID[unit];
+            break;
+        default:
+            USLOSS_Console("waitDevice(): invalid device or unit type\n");
+    }
+    returnCode = MboxReceive(deviceID, status, sizeof(int));
+    return returnCode == -3 ? -1 : 0;
 }
 
 void check_kernel_mode(char * processName) {
@@ -526,6 +561,11 @@ void disableInterrupts() {
 } /* disableInterrupts */
 
 int check_io() {
+    for (int i = 0; i < 7; i++) {   // TODO: Constant for handler mailboxes
+        if (MailBoxTable[i].blockRecvList != NULL) {
+            return 1;
+        }
+    }
     return 0;
 }
 
@@ -554,3 +594,74 @@ void zeroMboxProc(int pid) {
    MboxProcTable[pid % MAXPROC].nextBlockSend = NULL; 
    MboxProcTable[pid % MAXPROC].nextBlockRecv = NULL; 
 }
+
+/* an error method to handle invalid syscalls */
+void nullsys(systemArgs *args)
+{
+    USLOSS_Console("nullsys(): Invalid syscall. Halting...\n");
+    USLOSS_Halt(1);
+} /* nullsys */
+
+void clockHandler2(int dev, long unit) {
+    check_kernel_mode("clockHandler2");
+    disableInterrupts();
+
+    if (dev != USLOSS_CLOCK_INT || unit != 0) {
+        USLOSS_Console("clockHandler2(): wrong device or unit\n");
+        USLOSS_Halt(1);
+    }
+    int status;
+
+    clockCounter++;
+    if (clockCounter >= 5) {
+        USLOSS_DeviceInput(USLOSS_CLOCK_INT, 0, &status);
+        MboxCondSend(0, &status, sizeof(int));
+        clockCounter = 0;
+    }
+    timeSlice();
+    enableInterrupts();
+} /* clockHandler */
+
+void diskHandler(int dev, long unit) {
+    check_kernel_mode("diskHandler");
+    disableInterrupts();
+
+    if (dev != USLOSS_DISK_INT || unit < 0 || unit > 1) {
+        USLOSS_Console("diskHandler(): wrong device or unit\n");
+        USLOSS_Halt(1);
+    }
+    int status;
+    int mailboxID = unit + 1;
+
+    USLOSS_DeviceInput(USLOSS_DISK_INT, unit, &status);
+    MboxCondSend(mailboxID, &status, sizeof(int));
+    enableInterrupts();
+} /* diskHandler */
+
+void termHandler(int dev, long unit) {
+    check_kernel_mode("termHandler");
+    disableInterrupts();
+
+    if (dev != USLOSS_TERM_INT || unit < 0 || unit > 3) {
+        USLOSS_Console("termHandler(): wrong device or unit\n");
+        USLOSS_Halt(1);
+    }
+    int status;
+    int mailboxID = unit + 3;
+
+    USLOSS_DeviceInput(USLOSS_TERM_INT, unit, &status);
+    MboxCondSend(mailboxID, &status, sizeof(int));
+    enableInterrupts();
+} /* termHandler */
+
+void syscallHandler(int dev, long unit) {
+    check_kernel_mode("syscallHandler");
+    disableInterrupts();
+
+    if (dev != USLOSS_SYSCALL_INT || unit < 0 || unit > MAXSYSCALLS) {
+        USLOSS_Console("syscallHandler(): wrong device or unit\n");
+        USLOSS_Halt(1);
+    }
+    (*systemCallVec[unit])(NULL);
+    enableInterrupts();
+} /* syscallHandler */
