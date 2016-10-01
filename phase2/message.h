@@ -2,6 +2,7 @@
 #define EMPTY 0
 #define USED 1
 #define ACTIVE 1
+#define FAILED 666 // process status
 
 #define SEND_BLOCK 11
 #define RECV_BLOCK 12

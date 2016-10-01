@@ -32,7 +32,7 @@ void nullsys(systemArgs *args);
 void clockHandler2(int dev, long unit);
 void diskHandler(int dev, long unit);
 void termHandler(int dev, long unit);
-void syscallHandler(int dev, long unit);
+void syscallHandler(int dev, void *unit);
 slotPtr initSlot(int slotIndex, int mboxID, void *msg_ptr, int msg_size);
 int getSlotIndex();
 int addSlotToList(slotPtr slotToAdd, mailboxPtr mbptr);
@@ -223,6 +223,10 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
     // check if process on recieve block list
     if (mbptr->blockRecvList != NULL) {
         if (msg_size > mbptr->blockRecvList->msgSize) {
+            mbptr->blockRecvList->status = FAILED;
+            int pid = mbptr->blockRecvList->pid;
+            mbptr->blockRecvList = mbptr->blockRecvList->nextBlockRecv;
+            unblockProc(pid);
             enableInterrupts();
             return -1;
         }
@@ -306,6 +310,10 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
         if(MboxProcTable[pid % MAXPROC].mboxReleased || isZapped()){
            enableInterrupts(); 
            return -3;
+        }
+        if(MboxProcTable[pid % MAXPROC].status == FAILED) {
+            enableInterrupts();
+            return -1;
         }
         enableInterrupts();
         return MboxProcTable[pid % MAXPROC].msgSize;
@@ -609,7 +617,7 @@ void zeroMboxProc(int pid) {
 /* an error method to handle invalid syscalls */
 void nullsys(systemArgs *args)
 {
-    USLOSS_Console("nullsys(): Invalid syscall. Halting...\n");
+    USLOSS_Console("nullsys(): Invalid syscall %d. Halting...\n", args->number);
     USLOSS_Halt(1);
 } /* nullsys */
 
@@ -665,15 +673,19 @@ void termHandler(int dev, long unit) {
     enableInterrupts();
 } /* termHandler */
 
-void syscallHandler(int dev, long unit) {
+void syscallHandler(int dev, void *unit) {
     check_kernel_mode("syscallHandler");
     disableInterrupts();
 
-    if (dev != USLOSS_SYSCALL_INT || unit < 0 || unit > MAXSYSCALLS) {
-        USLOSS_Console("syscallHandler(): wrong device or unit\n");
+    systemArgs *args = unit;
+    int sysCall = args->number;
+
+    if (dev != USLOSS_SYSCALL_INT || sysCall < 0 || sysCall >= MAXSYSCALLS) {
+        USLOSS_Console("syscallHandler(): sys number %d is wrong.  Halting...\n",
+                sysCall);
         USLOSS_Halt(1);
     }
-    (*systemCallVec[unit])(NULL);
+    (*systemCallVec[sysCall])(args);
     enableInterrupts();
 } /* syscallHandler */
 
