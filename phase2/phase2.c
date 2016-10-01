@@ -4,6 +4,8 @@
    University of Arizona
    Computer Science 452
 
+   @author Joshua Riccio
+   @author Austin George
    ------------------------------------------------------------------------ */
 
 #include <phase1.h>
@@ -37,22 +39,20 @@ slotPtr initSlot(int slotIndex, int mboxID, void *msg_ptr, int msg_size);
 int getSlotIndex();
 int addSlotToList(slotPtr slotToAdd, mailboxPtr mbptr);
 /* -------------------------- Globals ------------------------------------- */
-
 int debugflag2 = 0;
 
 // the mail boxes 
 mailbox MailBoxTable[MAXMBOX];
-
 mailSlot SlotTable[MAXSLOTS];
 
+//Proc table
 mboxProc MboxProcTable[MAXPROC];
-// also need array of mail slots, array of function ptrs to system call 
-// handlers, ...
+
+//System call vector
 void (*systemCallVec[MAXSYSCALLS])(systemArgs *args);
 
+//Counter used by clock
 int clockCounter = 0;
-
-
 
 /* -------------------------- Functions ----------------------------------- */
 
@@ -99,10 +99,10 @@ int start1(char *arg)
     }
 
     // Initialize USLOSS_IntVec and system call handlers,
-    USLOSS_IntVec[USLOSS_CLOCK_INT] = clockHandler2;
-    USLOSS_IntVec[USLOSS_DISK_INT] = diskHandler;
-    USLOSS_IntVec[USLOSS_TERM_INT] = termHandler;
-    USLOSS_IntVec[USLOSS_SYSCALL_INT] = syscallHandler;
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = (void*)clockHandler2;
+    USLOSS_IntVec[USLOSS_DISK_INT] = (void*)diskHandler;
+    USLOSS_IntVec[USLOSS_TERM_INT] = (void*)termHandler;
+    USLOSS_IntVec[USLOSS_SYSCALL_INT] = (void*)syscallHandler;
 
     for (int i = 0; i < MAXSYSCALLS; i++) {
         systemCallVec[i] = nullsys;
@@ -345,6 +345,14 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
     }
 } /* MboxReceive */
 
+/* ------------------------------------------------------------------------
+   Name - MboxRelease
+   Purpose - Releases the mailbox, and alerts any blocked processes 
+             waiting on mailbox.
+   Parameters - one, mailboxID, the ID of the mailbox to release
+   Returns - 0 = normal, -1 = abnormal, -3 = zapped
+   Side Effects - Zeros the mailbox and alert the blocks procs
+   ----------------------------------------------------------------------- */
 int MboxRelease(int mailboxID) {
     check_kernel_mode("MboxRelease");
     disableInterrupts();
@@ -385,7 +393,14 @@ int MboxRelease(int mailboxID) {
     return isZapped() ? -3 : 0;
 }
 
-//This is basically the same as mboxsend, except it doesnt block
+/* ------------------------------------------------------------------------
+   Name - MboxCondSend
+   Purpose - Put a message into a slot for the indicated mailbox.
+             return -2 if no slot available.
+   Parameters - mailbox id, pointer to data of msg, # of bytes in msg.
+   Returns - zero if successful, -1 if invalid args.
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
 int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
     check_kernel_mode("MboxCondSend");
     disableInterrupts();
@@ -469,6 +484,15 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
     return isZapped() ? -3 : 0;
 }
 
+/* ------------------------------------------------------------------------
+   Name - MboxCondReceive
+   Purpose - Get a msg from a slot of the indicated mailbox.
+             return -2 if no msg available.
+   Parameters - mailbox id, pointer to put data of msg, max # of bytes that
+                can be received.
+   Returns - actual size of msg if successful, -1 if invalid args.
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
 int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
     check_kernel_mode("MboxCondReceive");
     disableInterrupts();
@@ -527,6 +551,13 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
     }
 }
 
+/* ------------------------------------------------------------------------
+   Name - waitDevice
+   Purpose - Block the process on the device until the device sends msg.
+   Parameters - type, unit, status
+   Returns - -1 if zapped, 0 otherwise
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
 int waitDevice(int type, int unit, int *status){
     check_kernel_mode("MboxReceive");
     disableInterrupts();
@@ -560,6 +591,9 @@ int waitDevice(int type, int unit, int *status){
     return returnCode == -3 ? -1 : 0;
 }
 
+/* 
+ *check_kernel_mode
+ */
 void check_kernel_mode(char * processName) {
     if((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
         USLOSS_Console("check_kernal_mode(): called while in user mode, by"
@@ -568,6 +602,9 @@ void check_kernel_mode(char * processName) {
     } 
 }
 
+/*
+ *enable_interrupts 
+ */
 void enableInterrupts() {
     USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
 }
@@ -579,8 +616,11 @@ void disableInterrupts() {
     USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
 } /* disableInterrupts */
 
+/*
+ * checks if any procs are blocked on io mailbox
+ */
 int check_io() {
-    for (int i = 0; i < 7; i++) {   // TODO: Constant for handler mailboxes
+    for (int i = 0; i < 7; i++) { 
         if (MailBoxTable[i].blockRecvList != NULL) {
             return 1;
         }
@@ -588,6 +628,9 @@ int check_io() {
     return 0;
 }
 
+/*
+ *Zeros all elements of the mailbox for that id
+ */
 void zeroMailbox(int mboxID) {
     MailBoxTable[mboxID].numSlots = -1;
     MailBoxTable[mboxID].slotsUsed = -1;
@@ -598,12 +641,18 @@ void zeroMailbox(int mboxID) {
     MailBoxTable[mboxID].status = EMPTY;
 }
 
+/*
+ *Zeros all elements of the slot for that id
+ */
 void zeroSlot(int slotID) {
     SlotTable[slotID].mboxID = -1;
     SlotTable[slotID].status = EMPTY;
     SlotTable[slotID].nextSlot = NULL;
 }
 
+/*
+ *Zeros all elements of the process for that id
+ */
 void zeroMboxProc(int pid) {
    MboxProcTable[pid % MAXPROC].pid = -1; 
    MboxProcTable[pid % MAXPROC].status = EMPTY; 
@@ -621,6 +670,13 @@ void nullsys(systemArgs *args)
     USLOSS_Halt(1);
 } /* nullsys */
 
+/* ------------------------------------------------------------------------
+   Name - clockHandler2
+   Purpose - called when interrupt vector is activated for this device
+   Parameters - device, unit
+   Returns - void
+   Side Effects - increases clock counted by 1.
+   ----------------------------------------------------------------------- */
 void clockHandler2(int dev, long unit) {
     check_kernel_mode("clockHandler2");
     disableInterrupts();
@@ -641,6 +697,13 @@ void clockHandler2(int dev, long unit) {
     enableInterrupts();
 } /* clockHandler */
 
+/* ------------------------------------------------------------------------
+   Name - diskHandler
+   Purpose - called when interrupt vector is activated for this device
+   Parameters - device, unit
+   Returns - void
+   Side Effects - none
+   ----------------------------------------------------------------------- */
 void diskHandler(int dev, long unit) {
     check_kernel_mode("diskHandler");
     disableInterrupts();
@@ -657,6 +720,13 @@ void diskHandler(int dev, long unit) {
     enableInterrupts();
 } /* diskHandler */
 
+/* ------------------------------------------------------------------------
+   Name - termHandler
+   Purpose - called when interrupt vector is activated for this device
+   Parameters - device, unit
+   Returns - void
+   Side Effects - none
+   ----------------------------------------------------------------------- */
 void termHandler(int dev, long unit) {
     check_kernel_mode("termHandler");
     disableInterrupts();
@@ -673,6 +743,13 @@ void termHandler(int dev, long unit) {
     enableInterrupts();
 } /* termHandler */
 
+/* ------------------------------------------------------------------------
+   Name - syscallHandler
+   Purpose - called when interrupt vector is activated for this device
+   Parameters - device, unit
+   Returns - void
+   Side Effects - none
+   ----------------------------------------------------------------------- */
 void syscallHandler(int dev, void *unit) {
     check_kernel_mode("syscallHandler");
     disableInterrupts();
@@ -700,6 +777,9 @@ int getSlotIndex() {
     return -1;  // will not reach
 }
 
+/*
+ *Initializes a new slot in the slot tables
+ */
 slotPtr initSlot(int slotIndex, int mboxID, void *msg_ptr, int msg_size) {
     SlotTable[slotIndex].mboxID = mboxID;
     SlotTable[slotIndex].status = USED;
@@ -708,6 +788,9 @@ slotPtr initSlot(int slotIndex, int mboxID, void *msg_ptr, int msg_size) {
     return &SlotTable[slotIndex];
 }
 
+/*
+ *Adds a slot to the slot list for a mailbox
+ */
 int addSlotToList(slotPtr slotToAdd, mailboxPtr mbptr) {
     slotPtr head = mbptr->slotList;
     if (head == NULL) {
