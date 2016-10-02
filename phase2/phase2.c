@@ -590,15 +590,16 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
    Side Effects - none.
    ----------------------------------------------------------------------- */
 int waitDevice(int type, int unit, int *status){
-    check_kernel_mode("MboxReceive");
+    check_kernel_mode("waitDevice");
     disableInterrupts();
 
-    int returnCode;
-    int deviceID;
-    int clockID = 0;
-    int diskID[] = {1, 2};
-    int termID[] = {3, 4, 5, 6};
+    int returnCode;               // -1 if process was zapped, 0 otherwise
+    int deviceID;                 // the index of the i/o mailbox
+    int clockID = 0;              // index of the clock i/o mailbox
+    int diskID[] = {1, 2};        // indexes of the disk i/o mailboxes
+    int termID[] = {3, 4, 5, 6};  // indexes of the terminal i/o mailboxes
 
+    // determine the index of the i/o mailbox for the given device type and unit
     switch (type) {
         case USLOSS_CLOCK_INT:
             deviceID = clockID;
@@ -618,6 +619,8 @@ int waitDevice(int type, int unit, int *status){
         default:
             USLOSS_Console("waitDevice(): invalid device or unit type\n");
     }
+
+    // wait for status of device
     returnCode = MboxReceive(deviceID, status, sizeof(int));
     return returnCode == -3 ? -1 : 0;
 }
