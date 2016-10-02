@@ -287,7 +287,7 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
     MboxProcTable[pid % MAXPROC].message = msg_ptr;
     MboxProcTable[pid % MAXPROC].msgSize = msg_size;
 
-    // mailbox is has zero slots and there is a process on receive list
+    // mailbox is has zero slots and there is a process on send list
     if (mbptr->numSlots == 0 && mbptr->blockSendList != NULL) {
         mboxProcPtr sender = mbptr->blockSendList;
         memcpy(msg_ptr, sender->message, sender->msgSize);
@@ -507,12 +507,13 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
     check_kernel_mode("MboxCondReceive");
     disableInterrupts();
 
+    // error checking for parameters
     if (MailBoxTable[mbox_id].status == EMPTY) {
         enableInterrupts();
         return -1;
     }
 
-    mailboxPtr mbptr = &MailBoxTable[mbox_id];
+    mailboxPtr mbptr = &MailBoxTable[mbox_id]; // pointer to mailbox
 
     if (msg_size < 0) {
         enableInterrupts();
@@ -526,6 +527,7 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
     MboxProcTable[pid % MAXPROC].message = msg_ptr;
     MboxProcTable[pid % MAXPROC].msgSize = msg_size;
 
+    // mailbox has zero slots and there is a process on send list
     if (mbptr->numSlots == 0 && mbptr->blockSendList != NULL) {
         mboxProcPtr sender = mbptr->blockSendList;
         memcpy(msg_ptr, sender->message, sender->msgSize);
@@ -533,25 +535,44 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
         unblockProc(sender->pid);
         return sender->msgSize;
     }
-
-    slotPtr slotptr = mbptr->slotList;
     
-    if (slotptr == NULL) {  // No message available
+    slotPtr slotptr = mbptr->slotList; // pointer to first slot in list
+
+    // no message available in slots.
+    if (slotptr == NULL) {  
         enableInterrupts();
         return -2;
-    } else {
+
+    } else { // there is a message available on the slot list
+
+        // message size is bigger than receive buffer size
         if (slotptr->msgSize > msg_size) {
             enableInterrupts();
             return -1;
         }
+
+        // copy message into receive messsage buffer
         memcpy(msg_ptr, slotptr->message, slotptr->msgSize);
         mbptr->slotList = slotptr->nextSlot;
         int msgSize = slotptr->msgSize;
         zeroSlot(slotptr->slotID);
         mbptr->slotsUsed--;
-        
-        // wake up a process blocked send
+
+        // there is a message on the send list waiting for a slot
         if (mbptr->blockSendList != NULL) {
+
+            // get slot from slot array
+            int slotIndex = getSlotIndex();
+
+            // initialize slot with message and message size
+            slotPtr slotToAdd = initSlot(slotIndex, mbptr->mboxID,
+                    mbptr->blockSendList->message, 
+                    mbptr->blockSendList->msgSize);
+
+            // add slot to the slot list
+            addSlotToList(slotToAdd, mbptr);
+        
+            // wake up a process blocked on send list
             int pid = mbptr->blockSendList->pid;
             mbptr->blockSendList = mbptr->blockSendList->nextBlockSend;
             unblockProc(pid);
