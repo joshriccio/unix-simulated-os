@@ -41,17 +41,17 @@ int addSlotToList(slotPtr slotToAdd, mailboxPtr mbptr);
 /* -------------------------- Globals ------------------------------------- */
 int debugflag2 = 0;
 
-// the mail boxes 
+// mailbox table and slot array
 mailbox MailBoxTable[MAXMBOX];
 mailSlot SlotTable[MAXSLOTS];
 
-//Proc table
+// Process table
 mboxProc MboxProcTable[MAXPROC];
 
-//System call vector
+// System call vector
 void (*systemCallVec[MAXSYSCALLS])(systemArgs *args);
 
-//Counter used by clock
+// Counter used by clock
 int clockCounter = 0;
 
 /* -------------------------- Functions ----------------------------------- */
@@ -64,17 +64,11 @@ int clockCounter = 0;
    Returns - one to indicate normal quit.
    Side Effects - lots since it initializes the phase2 data structures.
    ----------------------------------------------------------------------- */
-int start1(char *arg)
-{
+int start1(char *arg) {
     int kid_pid;
     int status;
 
-    if (DEBUG2 && debugflag2)
-        USLOSS_Console("start1(): at beginning\n");
-
     check_kernel_mode("start1");
-
-    // Disable interrupts
     disableInterrupts();
 
     // Initialize the mail box table
@@ -83,17 +77,18 @@ int start1(char *arg)
         zeroMailbox(i);
     }
 
-    // first seven boxes for interrupt handlers
+    // create first seven boxes for interrupt handlers
     for (int i = 0; i < 7; i++) {
         MboxCreate(0,0);
     }
 
-    // slots
+    // initialize slot array
     for (int i = 0; i < MAXSLOTS; i++) {
         SlotTable[i].slotID = i;
         zeroSlot(i);
     }
-    // process table
+
+    // initialize process table
     for (int i = 0; i < MAXPROC; i++) {
         zeroMboxProc(i);
     }
@@ -107,8 +102,6 @@ int start1(char *arg)
     for (int i = 0; i < MAXSYSCALLS; i++) {
         systemCallVec[i] = nullsys;
     }
-
-    // allocate mailboxes for interrupt handlers.  Etc... 
 
     enableInterrupts();
 
@@ -148,6 +141,7 @@ int MboxCreate(int slots, int slot_size) {
         return -1;
     }
 
+    // setup next available mailbox from the mailbox table
     for (int i = 0; i < MAXMBOX; i++) {
         if (MailBoxTable[i].status == EMPTY) {
             MailBoxTable[i].numSlots = slots;
@@ -175,18 +169,17 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
     check_kernel_mode("MboxSend");
     disableInterrupts();
 
+    // error checking for parameters and empty mailbox
     if (MailBoxTable[mbox_id].status == EMPTY) {
         enableInterrupts();
         return -1;
     }
-
-    // error check parameters
     if (mbox_id > MAXMBOX || mbox_id < 0) {
         enableInterrupts();
         return -1;
     }
 
-    mailboxPtr mbptr = &MailBoxTable[mbox_id];
+    mailboxPtr mbptr = &MailBoxTable[mbox_id]; // pointer to mailbox
 
     if (mbptr->numSlots != 0 && msg_size > mbptr->slotSize) {
         enableInterrupts();
@@ -222,6 +215,8 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
 
     // check if process on recieve block list
     if (mbptr->blockRecvList != NULL) {
+
+        // message size bigger than receive buffer size
         if (msg_size > mbptr->blockRecvList->msgSize) {
             mbptr->blockRecvList->status = FAILED;
             int pid = mbptr->blockRecvList->pid;
@@ -231,6 +226,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
             return -1;
         }
        
+        // copy the message to the receive process buffer
         memcpy(mbptr->blockRecvList->message, msg_ptr, msg_size);
         mbptr->blockRecvList->msgSize = msg_size;
         int recvPid = mbptr->blockRecvList->pid;
@@ -267,12 +263,13 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
     check_kernel_mode("MboxReceive");
     disableInterrupts();
 
+    // error checking for parameters
     if (MailBoxTable[mbox_id].status == EMPTY) {
         enableInterrupts();
         return -1;
     }
 
-    mailboxPtr mbptr = &MailBoxTable[mbox_id];
+    mailboxPtr mbptr = &MailBoxTable[mbox_id]; // pointer to mailbox
 
     if (msg_size < 0) {
         enableInterrupts();
@@ -286,6 +283,7 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
     MboxProcTable[pid % MAXPROC].message = msg_ptr;
     MboxProcTable[pid % MAXPROC].msgSize = msg_size;
 
+    // mailbox is has zero slots and there is a process on receive list
     if (mbptr->numSlots == 0 && mbptr->blockSendList != NULL) {
         mboxProcPtr sender = mbptr->blockSendList;
         memcpy(msg_ptr, sender->message, sender->msgSize);
@@ -294,9 +292,12 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
         return sender->msgSize;
     }
     
-    slotPtr slotptr = mbptr->slotList;
-    
-    if (slotptr == NULL) {  // block because no message available
+    slotPtr slotptr = mbptr->slotList; // pointer to first slot in list
+
+    // block because no message available
+    if (slotptr == NULL) {  
+
+        // receive process adds itself to receive list
         if (mbptr->blockRecvList == NULL) {
             mbptr->blockRecvList = &MboxProcTable[pid % MAXPROC];
         } else {
@@ -306,36 +307,55 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
             }
             temp->nextBlockRecv = &MboxProcTable[pid % MAXPROC];
         }
+
+        // block until sender arrives at mailbox
         blockMe(RECV_BLOCK);
+        
+        // process was zapped or mailbox was released
         if(MboxProcTable[pid % MAXPROC].mboxReleased || isZapped()){
            enableInterrupts(); 
            return -3;
         }
+
+        // failed to receive message from sender
         if(MboxProcTable[pid % MAXPROC].status == FAILED) {
             enableInterrupts();
             return -1;
         }
+
         enableInterrupts();
         return MboxProcTable[pid % MAXPROC].msgSize;
-    } else {
+
+    } else { // there is a message available on the slot list
+
+        // message size is bigger than receive buffer size
         if (slotptr->msgSize > msg_size) {
             enableInterrupts();
             return -1;
         }
+
+        // copy message into receive messsage buffer
         memcpy(msg_ptr, slotptr->message, slotptr->msgSize);
         mbptr->slotList = slotptr->nextSlot;
         int msgSize = slotptr->msgSize;
         zeroSlot(slotptr->slotID);
         mbptr->slotsUsed--;
 
+        // there is a message on the send list waiting for a slot
         if (mbptr->blockSendList != NULL) {
+
+            // get slot from slot array
             int slotIndex = getSlotIndex();
+
+            // initialize slot with message and message size
             slotPtr slotToAdd = initSlot(slotIndex, mbptr->mboxID,
                     mbptr->blockSendList->message, 
                     mbptr->blockSendList->msgSize);
+
+            // add slot to the slot list
             addSlotToList(slotToAdd, mbptr);
         
-            // wake up a process blocked send
+            // wake up a process blocked on send list
             int pid = mbptr->blockSendList->pid;
             mbptr->blockSendList = mbptr->blockSendList->nextBlockSend;
             unblockProc(pid);
@@ -357,6 +377,7 @@ int MboxRelease(int mailboxID) {
     check_kernel_mode("MboxRelease");
     disableInterrupts();
 
+    // error checking for parameters
     if (mailboxID < 0 || mailboxID >= MAXMBOX) {
         enableInterrupts();
         return -1;
@@ -367,12 +388,15 @@ int MboxRelease(int mailboxID) {
     }
     mailboxPtr mbptr = &MailBoxTable[mailboxID];
 
+    // no processes on send and receive block lists
     if (mbptr->blockSendList == NULL && mbptr->blockRecvList == NULL) {
         zeroMailbox(mailboxID);
         enableInterrupts();
         return isZapped() ? -3 : 0;
     } else {
-        mbptr->status = EMPTY;
+        mbptr->status = EMPTY; // mark mailbox as being empty
+
+        // mark all processes on block send and recveive list as being released
         while (mbptr->blockSendList != NULL) {
             mbptr->blockSendList->mboxReleased = 1;
             int pid = mbptr->blockSendList->pid;
@@ -388,7 +412,7 @@ int MboxRelease(int mailboxID) {
             disableInterrupts();
         }
     }
-    zeroMailbox(mailboxID);
+    zeroMailbox(mailboxID); // zero members of the mailbox struct
     enableInterrupts();
     return isZapped() ? -3 : 0;
 }
