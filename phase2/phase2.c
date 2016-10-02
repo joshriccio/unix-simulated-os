@@ -452,7 +452,7 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
         return -2;
     }
 
-    // zero lost mailbox and no process blocked on recveive list
+    // zero slot mailbox and no process blocked on recveive list
     if (mbptr->blockRecvList == NULL && mbptr->numSlots == 0) {
         return -1;
     }
@@ -463,6 +463,8 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
             enableInterrupts();
             return -1;
         }
+
+        // copy message into blocked receive process message buffer
         memcpy(mbptr->blockRecvList->message, msg_ptr, msg_size);
         mbptr->blockRecvList->msgSize = msg_size;
         int recvPid = mbptr->blockRecvList->pid;
@@ -473,37 +475,17 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
     }
     
     // find an empty slot in SlotTable
-    int slot;
-    int i;
-    for (i = 0; i < MAXSLOTS; i++) {
-        if (SlotTable[i].status == EMPTY) {
-           slot = i;
-           break;
-        }
-    }
-    if (i == MAXSLOTS) {
+    int slot = getSlotIndex();
+    if (slot == -2) {
         return -2;
     }
 
     // initialize slot
-    SlotTable[slot].mboxID = mbptr->mboxID;
-    SlotTable[slot].status = USED;
-    memcpy(SlotTable[slot].message, msg_ptr, msg_size);
-    SlotTable[slot].msgSize = msg_size;
+    slotPtr slotToAdd = initSlot(slot, mbptr->mboxID, msg_ptr, msg_size);
 
     // place found slot on slotList
-    slotPtr temp = mbptr->slotList;
-    if (temp == NULL) {
-        mbptr->slotList = &SlotTable[slot];
-    } else {
-        while (temp->nextSlot != NULL) {
-            temp = temp->nextSlot;
-        }
-        temp->nextSlot = &SlotTable[slot];
-    }
-
-    mbptr->slotsUsed++;
-
+    addSlotToList(slotToAdd, mbptr);
+    
     enableInterrupts();
     return isZapped() ? -3 : 0;
 }
@@ -790,15 +772,19 @@ void syscallHandler(int dev, void *unit) {
     enableInterrupts();
 } /* syscallHandler */
 
+/*
+ * Returns the index of the next available slot from the slot array or -2 if
+ * no available slot.
+ */
 int getSlotIndex() {
     for (int i = 0; i < MAXSLOTS; i++) {
         if (SlotTable[i].status == EMPTY) {
            return i;
         }
     }
-    USLOSS_Console("getSlotIndex(): No slots in system. Halting...\n");
-    USLOSS_Halt(1);
-    return -1;  // will not reach
+    //USLOSS_Console("getSlotIndex(): No slots in system. Halting...\n");
+    //USLOSS_Halt(1);
+    return -2;
 }
 
 /*
@@ -825,5 +811,5 @@ int addSlotToList(slotPtr slotToAdd, mailboxPtr mbptr) {
         }
         head->nextSlot = slotToAdd;
     }
-    return mbptr->slotsUsed++;
+    return ++mbptr->slotsUsed;
 }
