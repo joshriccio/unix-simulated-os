@@ -238,6 +238,10 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
     
     // find an empty slot in SlotTable
     int slot = getSlotIndex();
+    if (slot == -2) {
+        USLOSS_Console("MboxSend(): No slots in system. Halting...\n");
+        USLOSS_Halt(1);
+    }
 
     // initialize slot
     slotPtr slotToAdd = initSlot(slot, mbptr->mboxID, msg_ptr, msg_size);
@@ -782,8 +786,6 @@ int getSlotIndex() {
            return i;
         }
     }
-    //USLOSS_Console("getSlotIndex(): No slots in system. Halting...\n");
-    //USLOSS_Halt(1);
     return -2;
 }
 
