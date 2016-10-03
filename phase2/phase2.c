@@ -606,18 +606,21 @@ int waitDevice(int type, int unit, int *status){
             break;
         case USLOSS_DISK_INT:
             if (unit >  1 || unit < 0) {
-                USLOSS_Console("waitDevice(): invalid unit\n");
+                USLOSS_Console("waitDevice(): invalid unit  Halting\n");
+		USLOSS_Halt(1);
             }
             deviceID = diskID[unit];
             break;
         case USLOSS_TERM_INT:
             if (unit >  3 || unit < 0) {
-                USLOSS_Console("waitDevice(): invalid unit\n");
+                USLOSS_Console("waitDevice(): invalid unit  Halting...\n");
+		USLOSS_Halt(1);
             }
             deviceID = termID[unit];
             break;
         default:
-            USLOSS_Console("waitDevice(): invalid device or unit type\n");
+            USLOSS_Console("waitDevice(): invalid device or unit type  Halting...\n");
+	    USLOSS_Halt(1);
     }
 
     // wait for status of device
