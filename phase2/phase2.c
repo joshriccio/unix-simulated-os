@@ -450,6 +450,8 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
     int pid = getpid();
     MboxProcTable[pid % MAXPROC].pid = pid;
     MboxProcTable[pid % MAXPROC].status = ACTIVE;
+    MboxProcTable[pid % MAXPROC].message = msg_ptr;
+    MboxProcTable[pid % MAXPROC].msgSize = msg_size;
 
     // No empty slots in mailbox or no slots in system
     if (mbptr->numSlots != 0 && mbptr->numSlots == mbptr->slotsUsed) {
