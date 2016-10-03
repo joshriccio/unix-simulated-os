@@ -238,6 +238,10 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size) {
     
     // find an empty slot in SlotTable
     int slot = getSlotIndex();
+    if (slot == -2) {
+        USLOSS_Console("MboxSend(): No slots in system. Halting...\n");
+        USLOSS_Halt(1);
+    }
 
     // initialize slot
     slotPtr slotToAdd = initSlot(slot, mbptr->mboxID, msg_ptr, msg_size);
@@ -283,7 +287,7 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size) {
     MboxProcTable[pid % MAXPROC].message = msg_ptr;
     MboxProcTable[pid % MAXPROC].msgSize = msg_size;
 
-    // mailbox is has zero slots and there is a process on receive list
+    // mailbox is has zero slots and there is a process on send list
     if (mbptr->numSlots == 0 && mbptr->blockSendList != NULL) {
         mboxProcPtr sender = mbptr->blockSendList;
         memcpy(msg_ptr, sender->message, sender->msgSize);
@@ -452,7 +456,7 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
         return -2;
     }
 
-    // zero lost mailbox and no process blocked on recveive list
+    // zero slot mailbox and no process blocked on recveive list
     if (mbptr->blockRecvList == NULL && mbptr->numSlots == 0) {
         return -1;
     }
@@ -463,6 +467,8 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
             enableInterrupts();
             return -1;
         }
+
+        // copy message into blocked receive process message buffer
         memcpy(mbptr->blockRecvList->message, msg_ptr, msg_size);
         mbptr->blockRecvList->msgSize = msg_size;
         int recvPid = mbptr->blockRecvList->pid;
@@ -473,37 +479,17 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size){
     }
     
     // find an empty slot in SlotTable
-    int slot;
-    int i;
-    for (i = 0; i < MAXSLOTS; i++) {
-        if (SlotTable[i].status == EMPTY) {
-           slot = i;
-           break;
-        }
-    }
-    if (i == MAXSLOTS) {
+    int slot = getSlotIndex();
+    if (slot == -2) {
         return -2;
     }
 
     // initialize slot
-    SlotTable[slot].mboxID = mbptr->mboxID;
-    SlotTable[slot].status = USED;
-    memcpy(SlotTable[slot].message, msg_ptr, msg_size);
-    SlotTable[slot].msgSize = msg_size;
+    slotPtr slotToAdd = initSlot(slot, mbptr->mboxID, msg_ptr, msg_size);
 
     // place found slot on slotList
-    slotPtr temp = mbptr->slotList;
-    if (temp == NULL) {
-        mbptr->slotList = &SlotTable[slot];
-    } else {
-        while (temp->nextSlot != NULL) {
-            temp = temp->nextSlot;
-        }
-        temp->nextSlot = &SlotTable[slot];
-    }
-
-    mbptr->slotsUsed++;
-
+    addSlotToList(slotToAdd, mbptr);
+    
     enableInterrupts();
     return isZapped() ? -3 : 0;
 }
@@ -521,12 +507,13 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
     check_kernel_mode("MboxCondReceive");
     disableInterrupts();
 
+    // error checking for parameters
     if (MailBoxTable[mbox_id].status == EMPTY) {
         enableInterrupts();
         return -1;
     }
 
-    mailboxPtr mbptr = &MailBoxTable[mbox_id];
+    mailboxPtr mbptr = &MailBoxTable[mbox_id]; // pointer to mailbox
 
     if (msg_size < 0) {
         enableInterrupts();
@@ -540,6 +527,7 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
     MboxProcTable[pid % MAXPROC].message = msg_ptr;
     MboxProcTable[pid % MAXPROC].msgSize = msg_size;
 
+    // mailbox has zero slots and there is a process on send list
     if (mbptr->numSlots == 0 && mbptr->blockSendList != NULL) {
         mboxProcPtr sender = mbptr->blockSendList;
         memcpy(msg_ptr, sender->message, sender->msgSize);
@@ -547,25 +535,44 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
         unblockProc(sender->pid);
         return sender->msgSize;
     }
-
-    slotPtr slotptr = mbptr->slotList;
     
-    if (slotptr == NULL) {  // No message available
+    slotPtr slotptr = mbptr->slotList; // pointer to first slot in list
+
+    // no message available in slots.
+    if (slotptr == NULL) {  
         enableInterrupts();
         return -2;
-    } else {
+
+    } else { // there is a message available on the slot list
+
+        // message size is bigger than receive buffer size
         if (slotptr->msgSize > msg_size) {
             enableInterrupts();
             return -1;
         }
+
+        // copy message into receive messsage buffer
         memcpy(msg_ptr, slotptr->message, slotptr->msgSize);
         mbptr->slotList = slotptr->nextSlot;
         int msgSize = slotptr->msgSize;
         zeroSlot(slotptr->slotID);
         mbptr->slotsUsed--;
-        
-        // wake up a process blocked send
+
+        // there is a message on the send list waiting for a slot
         if (mbptr->blockSendList != NULL) {
+
+            // get slot from slot array
+            int slotIndex = getSlotIndex();
+
+            // initialize slot with message and message size
+            slotPtr slotToAdd = initSlot(slotIndex, mbptr->mboxID,
+                    mbptr->blockSendList->message, 
+                    mbptr->blockSendList->msgSize);
+
+            // add slot to the slot list
+            addSlotToList(slotToAdd, mbptr);
+        
+            // wake up a process blocked on send list
             int pid = mbptr->blockSendList->pid;
             mbptr->blockSendList = mbptr->blockSendList->nextBlockSend;
             unblockProc(pid);
@@ -583,15 +590,16 @@ int MboxCondReceive(int mbox_id, void *msg_ptr,int msg_size){
    Side Effects - none.
    ----------------------------------------------------------------------- */
 int waitDevice(int type, int unit, int *status){
-    check_kernel_mode("MboxReceive");
+    check_kernel_mode("waitDevice");
     disableInterrupts();
 
-    int returnCode;
-    int deviceID;
-    int clockID = 0;
-    int diskID[] = {1, 2};
-    int termID[] = {3, 4, 5, 6};
+    int returnCode;               // -1 if process was zapped, 0 otherwise
+    int deviceID;                 // the index of the i/o mailbox
+    int clockID = 0;              // index of the clock i/o mailbox
+    int diskID[] = {1, 2};        // indexes of the disk i/o mailboxes
+    int termID[] = {3, 4, 5, 6};  // indexes of the terminal i/o mailboxes
 
+    // determine the index of the i/o mailbox for the given device type and unit
     switch (type) {
         case USLOSS_CLOCK_INT:
             deviceID = clockID;
@@ -611,6 +619,8 @@ int waitDevice(int type, int unit, int *status){
         default:
             USLOSS_Console("waitDevice(): invalid device or unit type\n");
     }
+
+    // wait for status of device
     returnCode = MboxReceive(deviceID, status, sizeof(int));
     return returnCode == -3 ? -1 : 0;
 }
@@ -790,15 +800,17 @@ void syscallHandler(int dev, void *unit) {
     enableInterrupts();
 } /* syscallHandler */
 
+/*
+ * Returns the index of the next available slot from the slot array or -2 if
+ * no available slot.
+ */
 int getSlotIndex() {
     for (int i = 0; i < MAXSLOTS; i++) {
         if (SlotTable[i].status == EMPTY) {
            return i;
         }
     }
-    USLOSS_Console("getSlotIndex(): No slots in system. Halting...\n");
-    USLOSS_Halt(1);
-    return -1;  // will not reach
+    return -2;
 }
 
 /*
@@ -825,5 +837,5 @@ int addSlotToList(slotPtr slotToAdd, mailboxPtr mbptr) {
         }
         head->nextSlot = slotToAdd;
     }
-    return mbptr->slotsUsed++;
+    return ++mbptr->slotsUsed;
 }
