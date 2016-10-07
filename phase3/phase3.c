@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <usloss.h>
 #include <phase1.h>
 #include <phase2.h>
@@ -5,20 +6,39 @@
 #include <usyscall.h>
 #include <sems.h>
 
+void setUserMode();
+void spawn(systemArgs *args);
+int spawnReal(int (* userFunc)(char *), char *arg, int stackSize, int priority,
+        char *name);
+void spawnLaunch();
+void checkKernelMode(char * processName);
 
-int
-start2(char *arg)
-{
+procStruct3 procTable[MAXPROC]; // Process Table
+
+// Semaphore Table
+
+int start2(char *arg) {
     int pid;
     int status;
-    /*
-     * Check kernel mode here.
-     */
 
-    /*
-     * Data structure initialization as needed...
-     */
+    /* Check kernel mode here. */
+    checkKernelMode();
 
+    // initialize all sturcts in the process table to EMPTY
+    for (int i = 0; i < MAXPROC; i++) {
+        procTable[i].status = EMPTY;
+    }
+
+    // TODO: initialize semaphore table
+
+    // initialize systemCallVec to system call functions
+    systemCallVec[SYS_SPAWN] = spawn;
+    systemCallVec[SYS_WAIT] = wait;
+    systemCallVec[SYS_TERMINATE] = terminate;
+
+    // TODO: finish initialized systemCallVec
+
+    // TODO: place start2 in process table
 
     /*
      * Create first user-level process and wait for it to finish.
@@ -58,3 +78,80 @@ start2(char *arg)
 
 } /* start2 */
 
+/* 
+ *check_kernel_mode
+ */
+void checkKernelMode(char * processName) {
+    if((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
+        USLOSS_Console("check_kernal_mode(): called while in user mode, by"
+                " process %s. Halting...\n", processName);
+        USLOSS_Halt(1);
+    }   
+}
+
+void spawn(systemArgs *args) {
+    int pid;
+
+    // check for invalid arguments
+    if ((long) args->number != SYS_SPAWN) {
+        args->arg4 = (void *) -1;
+        return;
+    }
+    if ((long) args->arg3 < USLOSS_MIN_STACK) {
+        args->arg4 = (void *) -1;
+        return;
+    }
+    if ((long) args->arg4 > MINPRIORITY || (long) args->arg4 < MAXPRIORITY ) {
+        args->arg4 = (void *) -1;
+        return;
+    }
+    pid = spawnReal(args->arg1, args->arg2, (int) args->arg3, (int) args->arg4, (char *) args->arg5);
+
+    args->arg1 = (void *) pid; // newly created process id; or -1
+    args->arg4 = (void *) 0;   // inputs to function valid
+}
+
+int spawnReal(int (* userFunc)(char *), char *arg, int stackSize, int priority,
+        char *name) {
+
+    int childPID;
+    int mailboxID;
+
+    childPID = fork1(name, spawnLaunch, arg, stackSize, priority);
+
+    // add child information to the process table
+    procTable[childPID % MAXPROC].pid = childPID;
+    procTable[childPID % MAXPROC].parentPtr = &procTable[getpid() % MAXPROC];
+    procTable[childPID % MAXPROC].name = name;
+    procTable[childPID % MAXPROC].priority = priority;
+    procTable[childPID % MAXPROC].userFunc = userFunc;
+    procTable[childPID % MAXPROC].startArg = arg;
+    procTable[childPID % MAXPROC].stackSize = stackSize;
+    procTable[childPID % MAXPROC].status = ACTIVE;
+
+    mailboxID = procTable[childPID % MAXPROC].mboxID;
+
+    MboxSend(mailboxID, NULL, 0); // wake up child blocked in spawnLaunch
+
+    return childPID;
+}
+
+void spawnLaunch() {
+    int mailboxID;
+    int pid = getpid();
+
+    mailboxID = MboxCreate(0, 0);
+
+    procTable[pid % MAXPROC].mboxID = mailboxID;
+    
+    MboxReceive(mailboxID, NULL, 0);
+
+    setUserMode();
+
+    // calls userFunc for child process to execute
+    procTable[pid % MAXPROC].userFunc(procTable[pid % MAXPROC].startArg);
+}
+
+void setUserMode() {
+    USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_MODE);
+}
