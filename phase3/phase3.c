@@ -5,13 +5,22 @@
 #include <phase3.h>
 #include <usyscall.h>
 #include <sems.h>
+#include <string.h>
 
 void setUserMode();
 void spawn(systemArgs *args);
-int spawnReal(int (* userFunc)(char *), char *arg, int stackSize, int priority,
-        char *name);
-void spawnLaunch();
+int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize, 
+        int priority);
+int spawnLaunch(char *arg);
 void checkKernelMode(char * processName);
+void wait(systemArgs *args);
+void terminate(systemArgs *args);
+int waitReal(int *status);
+void addChildToList(procPtr3 child);
+void removeFromChildList(procPtr3 process);
+
+// remove prototype TODO:
+extern int start3(char *arg);
 
 procStruct3 procTable[MAXPROC]; // Process Table
 
@@ -22,7 +31,7 @@ int start2(char *arg) {
     int status;
 
     /* Check kernel mode here. */
-    checkKernelMode();
+    checkKernelMode("start2");
 
     // initialize all sturcts in the process table to EMPTY
     for (int i = 0; i < MAXPROC; i++) {
@@ -76,6 +85,8 @@ int start2(char *arg) {
      */
     pid = waitReal(&status);
 
+    quit(0);
+    return pid;
 } /* start2 */
 
 /* 
@@ -90,7 +101,7 @@ void checkKernelMode(char * processName) {
 }
 
 void spawn(systemArgs *args) {
-    int pid;
+    long pid;
 
     // check for invalid arguments
     if ((long) args->number != SYS_SPAWN) {
@@ -105,53 +116,168 @@ void spawn(systemArgs *args) {
         args->arg4 = (void *) -1;
         return;
     }
-    pid = spawnReal(args->arg1, args->arg2, (int) args->arg3, (int) args->arg4, (char *) args->arg5);
+    pid = spawnReal((char *) args->arg5, args->arg1, args->arg2, 
+            (long) args->arg3, (long) args->arg4);
 
     args->arg1 = (void *) pid; // newly created process id; or -1
     args->arg4 = (void *) 0;   // inputs to function valid
+    setUserMode();
 }
 
-int spawnReal(int (* userFunc)(char *), char *arg, int stackSize, int priority,
-        char *name) {
+int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize, 
+        int priority) {
 
     int childPID;
     int mailboxID;
 
     childPID = fork1(name, spawnLaunch, arg, stackSize, priority);
 
+    // if child has not ran yet
+    if (procTable[childPID % MAXPROC].status == EMPTY) {
+        mailboxID = MboxCreate(0, 0);
+        procTable[childPID % MAXPROC].mboxID = mailboxID;
+        procTable[childPID % MAXPROC].status = ACTIVE;
+    } else {
+        mailboxID = procTable[childPID % MAXPROC].mboxID;
+    }
+
     // add child information to the process table
     procTable[childPID % MAXPROC].pid = childPID;
-    procTable[childPID % MAXPROC].parentPtr = &procTable[getpid() % MAXPROC];
-    procTable[childPID % MAXPROC].name = name;
+    strcpy(procTable[childPID % MAXPROC].name, name);
     procTable[childPID % MAXPROC].priority = priority;
     procTable[childPID % MAXPROC].userFunc = userFunc;
-    procTable[childPID % MAXPROC].startArg = arg;
+    if (arg == NULL) {
+        procTable[childPID % MAXPROC].startArg[0] = 0;
+    } else {
+        strcpy(procTable[childPID % MAXPROC].startArg, arg);
+    }
     procTable[childPID % MAXPROC].stackSize = stackSize;
-    procTable[childPID % MAXPROC].status = ACTIVE;
 
-    mailboxID = procTable[childPID % MAXPROC].mboxID;
+    if (getpid() != START2_PID) {
+        procTable[childPID % MAXPROC].parentPtr = 
+            &procTable[getpid() % MAXPROC];
+        addChildToList(&procTable[childPID % MAXPROC]);
+    }
 
-    MboxSend(mailboxID, NULL, 0); // wake up child blocked in spawnLaunch
+    // wake up child if blocked in spawnLaunch
+    MboxCondSend(mailboxID, NULL, 0); 
 
     return childPID;
 }
 
-void spawnLaunch() {
+void spawnLaunch(char *arg) {
     int mailboxID;
     int pid = getpid();
+    int userFuncReturnValue;
 
-    mailboxID = MboxCreate(0, 0);
-
-    procTable[pid % MAXPROC].mboxID = mailboxID;
-    
-    MboxReceive(mailboxID, NULL, 0);
+    // parent has not set up process table
+    if (procTable[pid % MAXPROC].status == EMPTY) {
+        procTable[pid % MAXPROC].status = ACTIVE;
+        mailboxID = MboxCreate(0, 0);
+        procTable[pid % MAXPROC].mboxID = mailboxID;
+        MboxReceive(mailboxID, NULL, 0);
+    }
 
     setUserMode();
 
     // calls userFunc for child process to execute
-    procTable[pid % MAXPROC].userFunc(procTable[pid % MAXPROC].startArg);
+    userFuncReturnValue = procTable[pid % MAXPROC].userFunc(
+            procTable[pid % MAXPROC].startArg);
+    
+    Terminate(userFuncReturnValue);
+    return userFuncReturnValue;
+}
+
+void wait(systemArgs *args) {
+    int status;
+    long kidPID;
+
+    // check if correct system call
+    if ((long) args->number != SYS_WAIT) {
+        args->arg2 = (void *) -1;
+        return;
+    }
+
+    kidPID = waitReal(&status);
+
+    procTable[getpid() % MAXPROC].status = ACTIVE;
+    
+    if (kidPID == -2) {
+        args->arg1 = (void *) 0;
+        args->arg2 = (void *) -2;
+    } else {
+        args->arg1 = (void *) kidPID;
+        args->arg2 = ((void *) (long) status);
+    }
+    setUserMode();
+}
+
+int waitReal(int *status) {
+    procTable[getpid() % MAXPROC].status = WAIT_BLOCK;
+    return join(status);
+}
+
+void terminate(systemArgs *args) {
+    procPtr3 parent = &procTable[getpid() % MAXPROC];
+
+    if (parent->childProcPtr != NULL) {
+        while (parent->childProcPtr != NULL) {
+            // TODO:USLOSS_Console("zapping: %d\n", parent->childProcPtr->pid);
+            zap(parent->childProcPtr->pid);
+            parent->childProcPtr->status = EMPTY;
+            parent->childProcPtr = parent->childProcPtr->nextSiblingPtr;
+        }
+    }
+
+    if (parent->pid != START3_PID && parent->parentPtr != NULL) {
+        removeFromChildList(&procTable[getpid() % MAXPROC]);
+    }
+
+    parent->status = EMPTY;
+    quit(((int) (long) args->arg1));
 }
 
 void setUserMode() {
-    USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_MODE);
+    USLOSS_PsrSet(USLOSS_PsrGet() & 14);
 }
+
+void addChildToList(procPtr3 child) {
+    procPtr3 parent = &procTable[getpid() % MAXPROC];
+    
+    if (parent->childProcPtr == NULL) {
+        parent->childProcPtr = child;
+    } else {
+        procPtr3 sibling = parent->childProcPtr->nextSiblingPtr;
+        while (sibling->nextSiblingPtr != NULL) {
+            sibling = sibling->nextSiblingPtr;
+        }
+        sibling->nextSiblingPtr = child;
+    }
+}
+
+/*------------------------------------------------------------------
+|  Function removeFromChildList
+|
+|  Purpose:  Finds process in parent's childlist, removes process, reasigns
+|            all important processes
+|
+|  Parameters:
+|            procPtr process, process to be deleted
+|
+|  Returns:  void
+|
+|  Side Effects:  Process is removed from parent's childList
+*-------------------------------------------------------------------*/
+void removeFromChildList(procPtr3 process) {
+    procPtr3 temp = process;
+    // process is at the head of the linked list
+    if (process == process->parentPtr->childProcPtr) {
+        process->parentPtr->childProcPtr = process->nextSiblingPtr;
+    } else { // process is in the middle or end of linked list
+        temp = process->parentPtr->childProcPtr;
+        while (temp->nextSiblingPtr != process) {
+            temp = temp->nextSiblingPtr;
+        }    
+        temp->nextSiblingPtr = temp->nextSiblingPtr->nextSiblingPtr;
+    }    
+}/* removeFromChildList */

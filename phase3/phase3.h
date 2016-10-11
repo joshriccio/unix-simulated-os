@@ -6,10 +6,16 @@
 #define _PHASE3_H
 
 #define MAXSEMS         200
-#define EMPTY           0
-#define ACTIVE          1
 #define MINPRIORITY     5
 #define MAXPRIORITY     1
+
+#define START2_PID      3
+#define START3_PID      4
+
+// process table status
+#define EMPTY           0
+#define ACTIVE          1
+#define WAIT_BLOCK      11
 
 #endif /* _PHASE3_H */
 
@@ -18,8 +24,8 @@ typedef struct procStruct3 * procPtr3;
 
 struct procStruct3 {
    procPtr3        nextProcPtr;
-   procPtr3        childProcPtr;
-   procPtr3        nextSiblingPtr;
+   procPtr3        childProcPtr;    //
+   procPtr3        nextSiblingPtr;  // 
    procPtr3        parentPtr;      // parent process
    procPtr3        quitChildPtr;
    procPtr3        nextQuitSibling;

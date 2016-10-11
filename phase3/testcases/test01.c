@@ -30,7 +30,7 @@ int Child1(char *arg)
 
    printf("Child1(): starting\n");
    printf("Child1(): done\n");
-   // Terminate(9);
+   Terminate(9);
 
    return 9;
 } /* Child1 */
