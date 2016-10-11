@@ -5,6 +5,7 @@
 #include <phase3.h>
 #include <usyscall.h>
 #include <sems.h>
+#include <libuser.h>
 #include <string.h>
 
 void setUserMode();
@@ -18,13 +19,14 @@ void terminate(systemArgs *args);
 int waitReal(int *status);
 void addChildToList(procPtr3 child);
 void removeFromChildList(procPtr3 process);
+void semCreate(systemArgs *args);
 
 // remove prototype TODO:
 extern int start3(char *arg);
 
 procStruct3 procTable[MAXPROC]; // Process Table
 
-// Semaphore Table
+semStruct semTable[MAXSEMS]; // Semaphore Table
 
 int start2(char *arg) {
     int pid;
@@ -38,12 +40,16 @@ int start2(char *arg) {
         procTable[i].status = EMPTY;
     }
 
-    // TODO: initialize semaphore table
+    // initialize semaphore table
+    for (int i = 0; i < MAXSEMS; i++) {
+        semTable[i].status = EMPTY;
+    }
 
     // initialize systemCallVec to system call functions
     systemCallVec[SYS_SPAWN] = spawn;
     systemCallVec[SYS_WAIT] = wait;
     systemCallVec[SYS_TERMINATE] = terminate;
+    systemCallVec[SYS_SEMCREATE] = semCreate;
 
     // TODO: finish initialized systemCallVec
 
@@ -165,7 +171,7 @@ int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize,
     return childPID;
 }
 
-void spawnLaunch(char *arg) {
+int spawnLaunch(char *arg) {
     int mailboxID;
     int pid = getpid();
     int userFuncReturnValue;
@@ -185,7 +191,7 @@ void spawnLaunch(char *arg) {
             procTable[pid % MAXPROC].startArg);
     
     Terminate(userFuncReturnValue);
-    return userFuncReturnValue;
+    return 0;
 }
 
 void wait(systemArgs *args) {
@@ -236,6 +242,35 @@ void terminate(systemArgs *args) {
     parent->status = EMPTY;
     quit(((int) (long) args->arg1));
 }
+
+void semCreate(systemArgs *args) {
+    int index;
+
+    if ((long) args->arg1 < 0) {
+        args->arg4 = ((void *) (long) -1);
+        return;
+    }
+
+    for (index = 0; index < MAXSEMS; index++) {
+        if (semTable[index].status == EMPTY) {
+            break;
+        }
+    }
+
+    if (index == MAXSEMS) {
+        args->arg4 = ((void *) (long) -1);
+        return;
+    }
+
+    semTable[index].status = ACTIVE;
+    semTable[index].count = (long) args->arg1;
+    semTable[index].blockedList = NULL;
+
+    args->arg1 = ((void *) (long) index);
+    args->arg4 = ((void *) (long) 0);
+}
+
+
 
 void setUserMode() {
     USLOSS_PsrSet(USLOSS_PsrGet() & 14);

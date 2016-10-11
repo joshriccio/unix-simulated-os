@@ -118,8 +118,17 @@ void Terminate(int status)
  */
 int SemCreate(int value, int *semaphore)
 {
-    int something = 0;
-    return something;
+    systemArgs sysArg;
+    
+    CHECKMODE;
+    sysArg.number = SYS_SEMCREATE;
+    sysArg.arg1 = ((void *) (long) value);
+
+    USLOSS_Syscall(&sysArg);
+
+    *semaphore = ((int) (long)sysArg.arg1);
+
+    return ((int) (long)sysArg.arg4);
 } /* end of SemCreate */
 
 
