@@ -20,6 +20,9 @@ int waitReal(int *status);
 void addChildToList(procPtr3 child);
 void removeFromChildList(procPtr3 process);
 void semCreate(systemArgs *args);
+void addToSemBlockList(procPtr3 process, int semIndex);
+void semP(systemArgs *args);
+void semV(systemArgs *args);
 
 // remove prototype TODO:
 extern int start3(char *arg);
@@ -50,6 +53,7 @@ int start2(char *arg) {
     systemCallVec[SYS_WAIT] = wait;
     systemCallVec[SYS_TERMINATE] = terminate;
     systemCallVec[SYS_SEMCREATE] = semCreate;
+    systemCallVec[SYS_SEMP] = semP;
 
     // TODO: finish initialized systemCallVec
 
@@ -265,11 +269,63 @@ void semCreate(systemArgs *args) {
     semTable[index].status = ACTIVE;
     semTable[index].count = (long) args->arg1;
     semTable[index].blockedList = NULL;
+    semTable[index].mboxID = MboxCreate(1, 0);
 
     args->arg1 = ((void *) (long) index);
     args->arg4 = ((void *) (long) 0);
 }
 
+void semP(systemArgs *args) {
+    int semIndex = ((int) (long) args->arg1);
+
+    if (semIndex < 0 || semIndex > MAXSEMS) {
+        args->arg4 = ((void *) (long) -1);
+        return;
+    }
+
+    semStruct *semaphore = &semTable[semIndex];
+
+    if (semaphore->status == EMPTY) {
+        args->arg4 = ((void *) (long) -1);
+        return;
+    }
+
+    MboxSend(semaphore->mboxID, NULL, 0);
+    if (semaphore->count < 1) {
+        addToSemBlockList(&procTable[getpid() % MAXPROC], semIndex);
+        MboxReceive(semaphore->mboxID, NULL, 0);
+        MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
+    }
+    semaphore->count--;
+    args->arg4 = ((void *) (long) 0);
+}
+
+void semV(systemArgs *args) {
+    int semIndex = ((int) (long) args->arg1);
+
+    if (semIndex < 0 || semIndex > MAXSEMS) {
+        args->arg4 = ((void *) (long) -1);
+        return;
+    }
+
+    semStruct *semaphore = &semTable[semIndex];
+
+    if (semaphore->status == EMPTY) {
+        args->arg4 = ((void *) (long) -1);
+        return;
+    }
+
+    MboxSend(semaphore->mboxID, NULL, 0);
+    semaphore->count++;
+    
+    if (semaphore->blockedList != NULL) {
+        int blockProcMboxID = semaphore->blockedList->mboxID;
+        semaphore->blockedList = semaphore->blockedList->nextSemBlock;
+        MboxReceive(semaphore->mboxID, NULL, 0);
+        MboxSend(blockProcMboxID, NULL, 0);
+    }
+    args->arg4 = ((void *) (long) 0);
+}
 
 
 void setUserMode() {
@@ -316,3 +372,17 @@ void removeFromChildList(procPtr3 process) {
         temp->nextSiblingPtr = temp->nextSiblingPtr->nextSiblingPtr;
     }    
 }/* removeFromChildList */
+
+void addToSemBlockList(procPtr3 process, int semIndex) {
+    procPtr3 blockList = semTable[semIndex].blockedList;
+    
+    if (blockList == NULL) {
+        blockList = process;
+    } else {
+        procPtr3 temp = blockList;
+        while (temp->nextSemBlock != NULL) {
+            temp = temp->nextSemBlock;
+        }
+        temp->nextSemBlock = process;
+    }
+}

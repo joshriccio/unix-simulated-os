@@ -27,7 +27,7 @@ struct procStruct3 {
    procPtr3        childProcPtr;    //
    procPtr3        nextSiblingPtr;  // 
    procPtr3        parentPtr;      // parent process
-   procPtr3        quitChildPtr;
+   procPtr3        nextSemBlock;   // 
    procPtr3        nextQuitSibling;
    procPtr3        whoZapped;
    procPtr3        nextWhoZapped;

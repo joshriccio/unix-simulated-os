@@ -12,4 +12,5 @@ typedef struct semStruct {
     int count;
     procPtr3 blockedList;
     int status;
+    int mboxID;
 } semStruct;
