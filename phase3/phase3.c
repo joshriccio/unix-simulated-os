@@ -151,6 +151,10 @@ int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize,
 
     childPID = fork1(name, spawnLaunch, arg, stackSize, priority);
 
+    if (childPID < 0) {
+        return childPID;
+    }
+
     // if child has not ran yet
     if (procTable[childPID % MAXPROC].status == EMPTY) {
         mailboxID = MboxCreate(0, 0);
@@ -165,6 +169,9 @@ int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize,
     strcpy(procTable[childPID % MAXPROC].name, name);
     procTable[childPID % MAXPROC].priority = priority;
     procTable[childPID % MAXPROC].userFunc = userFunc;
+    procTable[childPID % MAXPROC].childProcPtr = NULL;
+    procTable[childPID % MAXPROC].nextSiblingPtr = NULL;
+    procTable[childPID % MAXPROC].nextSemBlock = NULL;
     if (arg == NULL) {
         procTable[childPID % MAXPROC].startArg[0] = 0;
     } else {
@@ -257,7 +264,7 @@ void terminate(systemArgs *args) {
         removeFromChildList(&procTable[getpid() % MAXPROC]);
     }
 
-    parent->status = EMPTY;
+    parent->status = EMPTY; // redundent in removeFromChildList
     quit(((int) (long) args->arg1));
 }
 
