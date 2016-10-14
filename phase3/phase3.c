@@ -54,7 +54,7 @@ int start2(char *arg) {
     systemCallVec[SYS_TERMINATE] = terminate;
     systemCallVec[SYS_SEMCREATE] = semCreate;
     systemCallVec[SYS_SEMP] = semP;
-
+	systemCallVec[SYS_SEMV] = semV;
     // TODO: finish initialized systemCallVec
 
     // TODO: place start2 in process table
@@ -338,7 +338,7 @@ void addChildToList(procPtr3 child) {
     if (parent->childProcPtr == NULL) {
         parent->childProcPtr = child;
     } else {
-        procPtr3 sibling = parent->childProcPtr->nextSiblingPtr;
+        procPtr3 sibling = parent->childProcPtr;
         while (sibling->nextSiblingPtr != NULL) {
             sibling = sibling->nextSiblingPtr;
         }
@@ -377,7 +377,7 @@ void addToSemBlockList(procPtr3 process, int semIndex) {
     procPtr3 blockList = semTable[semIndex].blockedList;
     
     if (blockList == NULL) {
-        blockList = process;
+        semTable[semIndex].blockedList = process;
     } else {
         procPtr3 temp = blockList;
         while (temp->nextSemBlock != NULL) {
