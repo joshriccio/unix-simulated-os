@@ -1,0 +1,22 @@
+start3(): started
+start3(): calling Spawn for Child1a
+Child1a(): starting
+Child1a(): current time = 133
+Child1a(): current time = 138
+Child1a(): current time = 145
+Child1a(): done
+start3(): calling Spawn for Child1b
+Child1b(): starting
+Child1b(): current time = 232
+Child1b(): current time = 239
+Child1b(): current time = 246
+Child1b(): done
+start3(): calling Spawn for Child1c
+Child1c(): starting
+Child1c(): current time = 330
+Child1c(): current time = 338
+Child1c(): current time = 344
+Child1c(): done
+start3(): calling Spawn for Child2
+start3(): Parent done. Calling Terminate.
+All processes completed.
