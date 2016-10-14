@@ -307,8 +307,10 @@ void semP(systemArgs *args) {
         MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
         if (semaphore->status == EMPTY) {
             setUserMode();
-            Terminate(99);
+            Terminate(1);
         }
+    } else {
+        MboxReceive(semaphore->mboxID, NULL, 0);
     }
     semaphore->count--;
     args->arg4 = ((void *) (long) 0);
