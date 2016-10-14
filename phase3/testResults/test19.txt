@@ -1,0 +1,3 @@
+start3(): started
+start3(): elapsed time = 8
+All processes completed.

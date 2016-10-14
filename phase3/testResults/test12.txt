@@ -1,0 +1,31 @@
+start3(): started
+start3(): calling Spawn for Child1a
+Child1a(): starting
+Child1a(): current time of day = 133
+Child1a(): current CPU time = 18
+Child1a(): current time of day = 145
+Child1a(): current CPU time = 33
+Child1a(): current time of day = 162
+Child1a(): current CPU time = 51
+Child1a(): done
+start3(): calling Spawn for Child1b
+Child1b(): starting
+Child1b(): current time of day = 251
+Child1b(): current CPU time = 18
+Child1b(): current time of day = 268
+Child1b(): current CPU time = 36
+Child1b(): current time of day = 286
+Child1b(): current CPU time = 51
+Child1b(): done
+start3(): calling Spawn for Child1c
+Child1c(): starting
+Child1c(): current time of day = 374
+Child1c(): current CPU time = 20
+Child1c(): current time of day = 391
+Child1c(): current CPU time = 37
+Child1c(): current time of day = 404
+Child1c(): current CPU time = 51
+Child1c(): done
+start3(): calling Spawn for Child2
+start3(): Parent done. Calling Terminate.
+All processes completed.
