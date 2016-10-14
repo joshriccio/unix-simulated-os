@@ -23,6 +23,10 @@ void semCreate(systemArgs *args);
 void addToSemBlockList(procPtr3 process, int semIndex);
 void semP(systemArgs *args);
 void semV(systemArgs *args);
+void semFree(systemArgs *args);
+void getPid(systemArgs *args);
+void getTimeOfDay(systemArgs *args);
+void cpuTime(systemArgs *args);
 
 // remove prototype TODO:
 extern int start3(char *arg);
@@ -55,6 +59,11 @@ int start2(char *arg) {
     systemCallVec[SYS_SEMCREATE] = semCreate;
     systemCallVec[SYS_SEMP] = semP;
 	systemCallVec[SYS_SEMV] = semV;
+	systemCallVec[SYS_SEMFREE] = semFree;
+	systemCallVec[SYS_GETPID] = getPid;
+	systemCallVec[SYS_GETTIMEOFDAY] = getTimeOfDay;
+	systemCallVec[SYS_CPUTIME] = cpuTime;
+
     // TODO: finish initialized systemCallVec
 
     // TODO: place start2 in process table
@@ -273,6 +282,7 @@ void semCreate(systemArgs *args) {
 
     args->arg1 = ((void *) (long) index);
     args->arg4 = ((void *) (long) 0);
+    setUserMode();
 }
 
 void semP(systemArgs *args) {
@@ -295,9 +305,14 @@ void semP(systemArgs *args) {
         addToSemBlockList(&procTable[getpid() % MAXPROC], semIndex);
         MboxReceive(semaphore->mboxID, NULL, 0);
         MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
+        if (semaphore->status == EMPTY) {
+            setUserMode();
+            Terminate(99);
+        }
     }
     semaphore->count--;
     args->arg4 = ((void *) (long) 0);
+    setUserMode();
 }
 
 void semV(systemArgs *args) {
@@ -325,8 +340,54 @@ void semV(systemArgs *args) {
         MboxSend(blockProcMboxID, NULL, 0);
     }
     args->arg4 = ((void *) (long) 0);
+    setUserMode();
 }
 
+void semFree(systemArgs *args) {
+    int semIndex = ((int) (long) args->arg1);
+
+    if (semIndex < 0 || semIndex > MAXSEMS) {
+        args->arg4 = ((void *) (long) -1);
+        return;
+    }
+
+    semStruct *semaphore = &semTable[semIndex];
+
+    if (semaphore->status == EMPTY) {
+        args->arg4 = ((void *) (long) -1);
+        return;
+    }
+
+    semaphore->status = EMPTY;
+
+    // Handle block list
+    if (semaphore->blockedList != NULL) {
+        while (semaphore->blockedList != NULL) {
+            int privateMboxID = semaphore->blockedList->mboxID;
+            MboxSend(privateMboxID, NULL, 0);
+            semaphore->blockedList = semaphore->blockedList->nextSemBlock;
+        }
+        args->arg4 = ((void *) (long) 1);
+    } else {
+        args->arg4 = ((void *) (long) 0);
+    }
+    setUserMode();
+}
+
+void getPid(systemArgs *args) {
+    args->arg1 = ((void *) (long) getpid());
+    setUserMode();
+}
+
+void getTimeOfDay(systemArgs *args) {
+    args->arg1 = ((void *) (long) USLOSS_Clock());
+    setUserMode();
+}
+
+void cpuTime(systemArgs *args) {
+    args->arg1 = ((void *) (long) readtime());
+    setUserMode();
+}
 
 void setUserMode() {
     USLOSS_PsrSet(USLOSS_PsrGet() & 14);

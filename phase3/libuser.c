@@ -186,8 +186,16 @@ int SemV(int semaphore)
  */
 int SemFree(int semaphore)
 {
-    int something = 0;
-    return something;
+    systemArgs sysArg;
+    
+    CHECKMODE;
+    sysArg.number = SYS_SEMFREE;
+    sysArg.arg1 = ((void *) (long) semaphore);
+
+    USLOSS_Syscall(&sysArg);
+
+    // -1 invalid, 1 processes blocked, 0 success
+    return ((int) (long)sysArg.arg4);
 } /* end of SemFree */
 
 
@@ -201,6 +209,14 @@ int SemFree(int semaphore)
  */
 void GetTimeofDay(int *tod)                           
 {
+    systemArgs sysArg;
+    
+    CHECKMODE;
+    sysArg.number = SYS_GETTIMEOFDAY;
+
+    USLOSS_Syscall(&sysArg);
+
+     *tod = ((int) (long)sysArg.arg1);
 } /* end of GetTimeofDay */
 
 
@@ -214,6 +230,14 @@ void GetTimeofDay(int *tod)
  */
 void CPUTime(int *cpu)                           
 {
+    systemArgs sysArg;
+    
+    CHECKMODE;
+    sysArg.number = SYS_CPUTIME;
+
+    USLOSS_Syscall(&sysArg);
+
+     *cpu = ((int) (long)sysArg.arg1);
 } /* end of CPUTime */
 
 
@@ -227,6 +251,14 @@ void CPUTime(int *cpu)
  */
 void GetPID(int *pid)                           
 {
+    systemArgs sysArg;
+    
+    CHECKMODE;
+    sysArg.number = SYS_GETPID;
+
+    USLOSS_Syscall(&sysArg);
+
+     *pid = ((int) (long)sysArg.arg1);
 } /* end of GetPID */
 
 /* end libuser.c */
