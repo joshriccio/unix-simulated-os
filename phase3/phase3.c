@@ -197,6 +197,11 @@ int spawnLaunch(char *arg) {
         MboxReceive(mailboxID, NULL, 0);
     }
 
+    if (isZapped()) {
+        setUserMode();
+        Terminate(99);
+    }
+
     setUserMode();
 
     // calls userFunc for child process to execute
@@ -243,8 +248,8 @@ void terminate(systemArgs *args) {
         while (parent->childProcPtr != NULL) {
             // TODO:USLOSS_Console("zapping: %d\n", parent->childProcPtr->pid);
             zap(parent->childProcPtr->pid);
-            parent->childProcPtr->status = EMPTY;
-            parent->childProcPtr = parent->childProcPtr->nextSiblingPtr;
+            //parent->childProcPtr->status = EMPTY;
+            //parent->childProcPtr = parent->childProcPtr->nextSiblingPtr;
         }
     }
 
@@ -340,6 +345,8 @@ void semV(systemArgs *args) {
         semaphore->blockedList = semaphore->blockedList->nextSemBlock;
         MboxReceive(semaphore->mboxID, NULL, 0);
         MboxSend(blockProcMboxID, NULL, 0);
+    } else {
+        MboxReceive(semaphore->mboxID, NULL, 0);
     }
     args->arg4 = ((void *) (long) 0);
     setUserMode();
@@ -434,6 +441,7 @@ void removeFromChildList(procPtr3 process) {
         }    
         temp->nextSiblingPtr = temp->nextSiblingPtr->nextSiblingPtr;
     }    
+    process->status = EMPTY;
 }/* removeFromChildList */
 
 void addToSemBlockList(procPtr3 process, int semIndex) {
