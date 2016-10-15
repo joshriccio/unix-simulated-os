@@ -329,9 +329,17 @@ void semP(systemArgs *args) {
     setUserMode();
 }
 
+/* ------------------------------------------------------------------------
+   Name - semV
+   Purpose - Increments the semaphore count by one.
+   Parameters - systemArgs *args, the arguments passed from libuser.c
+   Returns - void, sets arg values
+   Side Effects - Wakes up any blocked semaphores if there are any blocked.
+   ----------------------------------------------------------------------- */
 void semV(systemArgs *args) {
     int semIndex = ((int) (long) args->arg1);
-
+	
+	//If the index requested is an invalid index, return
     if (semIndex < 0 || semIndex > MAXSEMS) {
         args->arg4 = ((void *) (long) -1);
         return;
@@ -339,18 +347,23 @@ void semV(systemArgs *args) {
 
     semStruct *semaphore = &semTable[semIndex];
 
+	//If the requested semaphore is not active, return
     if (semaphore->status == EMPTY) {
         args->arg4 = ((void *) (long) -1);
         return;
     }
-
+	
+	//Enter mutex area, no other processes may enter while in.
     MboxSend(semaphore->mboxID, NULL, 0);
+	//increment semaphore count
     semaphore->count++;
     
+	//Wake up the first blocked process if one exists
     if (semaphore->blockedList != NULL) {
         int blockProcMboxID = semaphore->blockedList->mboxID;
         semaphore->blockedList = semaphore->blockedList->nextSemBlock;
-        MboxReceive(semaphore->mboxID, NULL, 0);
+        //Release mutex
+		MboxReceive(semaphore->mboxID, NULL, 0);
         MboxSend(blockProcMboxID, NULL, 0);
     } else {
         MboxReceive(semaphore->mboxID, NULL, 0);
@@ -359,9 +372,17 @@ void semV(systemArgs *args) {
     setUserMode();
 }
 
+/* ------------------------------------------------------------------------
+   Name - semFree
+   Purpose - Frees a semaphore, making it available in the semtable
+   Parameters - systemArgs *args, the arguments passed from libuser.c
+   Returns - void, sets arg values
+   Side Effects - Makes a semaphore available in the semTable
+   ----------------------------------------------------------------------- */
 void semFree(systemArgs *args) {
     int semIndex = ((int) (long) args->arg1);
 
+	//If the requested semaphore is invalid, return
     if (semIndex < 0 || semIndex > MAXSEMS) {
         args->arg4 = ((void *) (long) -1);
         return;
@@ -369,6 +390,7 @@ void semFree(systemArgs *args) {
 
     semStruct *semaphore = &semTable[semIndex];
 
+	//If the semaphore is not in use, return
     if (semaphore->status == EMPTY) {
         args->arg4 = ((void *) (long) -1);
         return;
@@ -378,6 +400,7 @@ void semFree(systemArgs *args) {
 
     // Handle block list
     if (semaphore->blockedList != NULL) {
+		//While the semaphore has blocked processes, wake them up
         while (semaphore->blockedList != NULL) {
             int privateMboxID = semaphore->blockedList->mboxID;
             MboxSend(privateMboxID, NULL, 0);
@@ -390,31 +413,44 @@ void semFree(systemArgs *args) {
     setUserMode();
 }
 
+/*Returns the phase1 gtpid() value*/
 void getPid(systemArgs *args) {
     args->arg1 = ((void *) (long) getpid());
     setUserMode();
 }
 
+/* Returns the USLOSS_Clock time*/
 void getTimeOfDay(systemArgs *args) {
     args->arg1 = ((void *) (long) USLOSS_Clock());
     setUserMode();
 }
 
+/* Returns the phase1 readtime value*/
 void cpuTime(systemArgs *args) {
     args->arg1 = ((void *) (long) readtime());
     setUserMode();
 }
 
+/* Sets the mode from kernel mode to user mode */
 void setUserMode() {
     USLOSS_PsrSet(USLOSS_PsrGet() & 14);
 }
 
+/* ------------------------------------------------------------------------
+   Name - addChildToList
+   Purpose - Inserts a child to the end of the parent's child list
+   Parameters - procPtr3 process, process to beadded
+   Returns - void
+   Side Effects - adds child to parent's child list
+   ----------------------------------------------------------------------- */
 void addChildToList(procPtr3 child) {
     procPtr3 parent = &procTable[getpid() % MAXPROC];
     
+	//If process has no children, add it to head
     if (parent->childProcPtr == NULL) {
         parent->childProcPtr = child;
     } else {
+		//add child to end of list
         procPtr3 sibling = parent->childProcPtr;
         while (sibling->nextSiblingPtr != NULL) {
             sibling = sibling->nextSiblingPtr;
@@ -423,19 +459,14 @@ void addChildToList(procPtr3 child) {
     }
 }
 
-/*------------------------------------------------------------------
-|  Function removeFromChildList
-|
-|  Purpose:  Finds process in parent's childlist, removes process, reasigns
-|            all important processes
-|
-|  Parameters:
-|            procPtr process, process to be deleted
-|
-|  Returns:  void
-|
-|  Side Effects:  Process is removed from parent's childList
-*-------------------------------------------------------------------*/
+/* ------------------------------------------------------------------------
+   Name - removeFromChildList
+   Purpose - Finds process in parent's childlist, removes process, reasigns
+             all important processes
+   Parameters - procPtr3 process, process to be deleted
+   Returns - void
+   Side Effects - Removes child from parent's child list
+   ----------------------------------------------------------------------- */
 void removeFromChildList(procPtr3 process) {
     procPtr3 temp = process;
     // process is at the head of the linked list
@@ -451,13 +482,22 @@ void removeFromChildList(procPtr3 process) {
     process->status = EMPTY;
 }/* removeFromChildList */
 
+/* ------------------------------------------------------------------------
+   Name - addToSemBlockList
+   Purpose - Inserts a process into a semaphore's blocklist
+   Parameters - The process to be inserted, the index of the sempahore.
+   Returns - void
+   Side Effects - A new process is added to the semaphore blocklist
+   ----------------------------------------------------------------------- */
 void addToSemBlockList(procPtr3 process, int semIndex) {
     procPtr3 blockList = semTable[semIndex].blockedList;
     
+	//If there are not processes blocked 
     if (blockList == NULL) {
         semTable[semIndex].blockedList = process;
     } else {
         procPtr3 temp = blockList;
+		//find the end of the semaphore's blocklist
         while (temp->nextSemBlock != NULL) {
             temp = temp->nextSemBlock;
         }
