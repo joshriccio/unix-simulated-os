@@ -4,6 +4,7 @@
 #define EMPTY 0
 #define ACTIVE 1
 
+extern int start3(char *arg);
 #endif
 
 // typedef struct semStruct * semPtr;

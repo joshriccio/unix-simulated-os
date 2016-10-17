@@ -1,3 +1,12 @@
+/* ------------------------------------------------------------------------
+   phase3.c
+
+   University of Arizona
+   Computer Science 452
+
+   @author Joshua Riccio
+   @author Austin George
+   ------------------------------------------------------------------------ */
 #include <stdlib.h>
 #include <usloss.h>
 #include <phase1.h>
@@ -8,6 +17,7 @@
 #include <libuser.h>
 #include <string.h>
 
+/* ------------------------- Prototypes ----------------------------------- */
 void setUserMode();
 void spawn(systemArgs *args);
 int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize, 
@@ -28,16 +38,26 @@ void getPid(systemArgs *args);
 void getTimeOfDay(systemArgs *args);
 void cpuTime(systemArgs *args);
 
-// remove prototype TODO:
 extern int start3(char *arg);
 
+/* -------------------------- Globals ------------------------------------- */
 procStruct3 procTable[MAXPROC]; // Process Table
 
 semStruct semTable[MAXSEMS]; // Semaphore Table
 
+/* -------------------------- Functions ----------------------------------- */
+
+/* ------------------------------------------------------------------------
+   Name - start2
+   Purpose - Initializes process table, semaphore table, and system call 
+             vector.
+   Parameters - arg: function arguments. not used.
+   Returns - int: zero for a normal quit. Should not be used.
+   Side Effects - lots since it initializes the phase3 data structures.
+   ----------------------------------------------------------------------- */
 int start2(char *arg) {
-    int pid;
-    int status;
+    int pid;    // start3 process ID
+    int status; // start3 quit status
 
     /* Check kernel mode here. */
     checkKernelMode("start2");
@@ -63,10 +83,6 @@ int start2(char *arg) {
 	systemCallVec[SYS_GETPID] = getPid;
 	systemCallVec[SYS_GETTIMEOFDAY] = getTimeOfDay;
 	systemCallVec[SYS_CPUTIME] = cpuTime;
-
-    // TODO: finish initialized systemCallVec
-
-    // TODO: place start2 in process table
 
     /*
      * Create first user-level process and wait for it to finish.
@@ -98,27 +114,41 @@ int start2(char *arg) {
      */
     pid = spawnReal("start3", start3, NULL, USLOSS_MIN_STACK, 3);
 
+    // failed to create start3 process
+    if (pid < 0) {
+        quit(pid);
+    }
+
     /* Call the waitReal version of your wait code here.
      * You call waitReal (rather than Wait) because start2 is running
      * in kernel (not user) mode.
      */
     pid = waitReal(&status);
 
+    // failed to join with start3 child process
+    if (pid < 0) {
+        quit(pid);
+    }
+
     quit(0);
-    return pid;
+    return 0;
 } /* start2 */
 
-/* 
- *check_kernel_mode
- */
-void checkKernelMode(char * processName) {
-    if((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
-        USLOSS_Console("check_kernal_mode(): called while in user mode, by"
-                " process %s. Halting...\n", processName);
-        USLOSS_Halt(1);
-    }   
-}
-
+/* ------------------------------------------------------------------------
+   Name - spawn
+   Purpose - Create a user-level process
+   Parameters - systemArgs *args, the arguments passed from libuser.c
+             args->arg1: address of the function to spawn
+             args->arg2: parameter passed to spawned function
+             args->arg3: stack size (in bytes)
+             args->arg4: priority
+             args->arg5: character string containing process’s name
+   Returns - void, sets arg values
+             args->arg1: PID of the newly created process; -1 if a process 
+                         could not be created
+             args->arg2: -1 if illegal values are given as input; 0 otherwise
+   Side Effects - spawnReal is called using the above parameters
+   ----------------------------------------------------------------------- */
 void spawn(systemArgs *args) {
     long pid;
 
@@ -135,6 +165,7 @@ void spawn(systemArgs *args) {
         args->arg4 = (void *) -1;
         return;
     }
+
     pid = spawnReal((char *) args->arg5, args->arg1, args->arg2, 
             (long) args->arg3, (long) args->arg4);
 
@@ -143,19 +174,33 @@ void spawn(systemArgs *args) {
     setUserMode();
 }
 
+/* ------------------------------------------------------------------------
+   Name - spawnReal
+   Purpose - Called by spawn to create a user-level process using the phase1
+             function call
+   Parameters - userFunc: address of the function to spawn
+                     arg: parameter passed to spawned function
+               stackSize: stack size (in bytes)
+                priority: priority
+                    name: character string containing process’s name
+   Returns - int: PID of the newly created process; -1 if a process could not 
+                  be created
+   Side Effects - process information is added to the process table
+   ----------------------------------------------------------------------- */
 int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize, 
         int priority) {
 
-    int childPID;
-    int mailboxID;
+    int childPID;  // child pid to return
+    int mailboxID; // private mailbox for newly created process
 
     childPID = fork1(name, spawnLaunch, arg, stackSize, priority);
 
-    if (childPID < 0) {
+    if (childPID < 0) {  // error durnin fork1
         return childPID;
     }
 
-    // if child has not ran yet
+    // If parent process has a higher priority then child, parent will
+    // initialize process table for child
     if (procTable[childPID % MAXPROC].status == EMPTY) {
         mailboxID = MboxCreate(0, 0);
         procTable[childPID % MAXPROC].mboxID = mailboxID;
@@ -179,6 +224,7 @@ int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize,
     }
     procTable[childPID % MAXPROC].stackSize = stackSize;
 
+    // start2 should not add its information to process table
     if (getpid() != START2_PID) {
         procTable[childPID % MAXPROC].parentPtr = 
             &procTable[getpid() % MAXPROC];
@@ -191,12 +237,21 @@ int spawnReal(char *name, int (* userFunc)(char *), char *arg, int stackSize,
     return childPID;
 }
 
+/* ------------------------------------------------------------------------
+   Name - spawnLaunch
+   Purpose - Called by phase1 Launch to execute the user-level process code
+             passed to spawn.
+   Parameters - arg: parameter passed to spawned function
+   Returns - int: no value is returned
+   Side Effects - If process does not call Terminate, spawnLaunch will call
+                  Terminate
+   ----------------------------------------------------------------------- */
 int spawnLaunch(char *arg) {
-    int mailboxID;
-    int pid = getpid();
-    int userFuncReturnValue;
+    int mailboxID;           // process private mailbox
+    int pid = getpid();      // process ID
+    int userFuncReturnValue; // value returned from userFunc
 
-    // parent has not set up process table
+    // parent has not set up process table, child will set up
     if (procTable[pid % MAXPROC].status == EMPTY) {
         procTable[pid % MAXPROC].status = ACTIVE;
         mailboxID = MboxCreate(0, 0);
@@ -204,6 +259,7 @@ int spawnLaunch(char *arg) {
         MboxReceive(mailboxID, NULL, 0);
     }
 
+    // Terminate if child was zapped while blocked waiting for parent
     if (isZapped()) {
         setUserMode();
         Terminate(99);
@@ -219,6 +275,15 @@ int spawnLaunch(char *arg) {
     return 0;
 }
 
+/* ------------------------------------------------------------------------
+   Name - wait
+   Purpose - Wait for a child process to terminate.
+   Parameters - None
+   Returns - void, sets arg values
+             args->arg1: process ID of terminating child
+             args->arg2: termination code of the child
+   Side Effects - process is blocked if no children have terminated
+   ----------------------------------------------------------------------- */
 void wait(systemArgs *args) {
     int status;
     long kidPID;
@@ -243,28 +308,45 @@ void wait(systemArgs *args) {
     setUserMode();
 }
 
+/* ------------------------------------------------------------------------
+   Name - waitReal
+   Purpose - Called by wait. Sets process table status of calling process and
+             calls phase1 join.
+   Parameters - status: the termination code of the child
+   Returns - int: process ID of terminating child
+   Side Effects - process is blocked if no children have terminated
+   ----------------------------------------------------------------------- */
 int waitReal(int *status) {
     procTable[getpid() % MAXPROC].status = WAIT_BLOCK;
     return join(status);
 }
 
+/* ------------------------------------------------------------------------
+   Name - terminate
+   Purpose - Terminates the invoking process and all of its children, and 
+             synchronizes with its parent’s Wait system call. Processes are 
+             terminated by zap’ing them.
+   Parameters - systemArgs *args, the arguments passed from libuser.c
+                args->arg1: termination code for the process
+   Returns - None
+   Side Effects - process status in process table is set to EMPTY
+   ----------------------------------------------------------------------- */
 void terminate(systemArgs *args) {
-    procPtr3 parent = &procTable[getpid() % MAXPROC];
+    procPtr3 parent = &procTable[getpid() % MAXPROC]; // the calling process
 
+    // if the process has children, zap them
     if (parent->childProcPtr != NULL) {
         while (parent->childProcPtr != NULL) {
-            // TODO:USLOSS_Console("zapping: %d\n", parent->childProcPtr->pid);
             zap(parent->childProcPtr->pid);
-            //parent->childProcPtr->status = EMPTY;
-            //parent->childProcPtr = parent->childProcPtr->nextSiblingPtr;
         }
     }
 
+    // When children call terminate they remove themselves from their parents
     if (parent->pid != START3_PID && parent->parentPtr != NULL) {
         removeFromChildList(&procTable[getpid() % MAXPROC]);
     }
 
-    parent->status = EMPTY; // redundent in removeFromChildList
+    parent->status = EMPTY; // process should no longer be used
     quit(((int) (long) args->arg1));
 }
 
@@ -449,6 +531,15 @@ void semFree(systemArgs *args) {
     setUserMode();
 }
 
+/* Halt USLOSS if process is not in kernal mode */
+void checkKernelMode(char * processName) {
+    if((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
+        USLOSS_Console("check_kernal_mode(): called while in user mode, by"
+                " process %s. Halting...\n", processName);
+        USLOSS_Halt(1);
+    }   
+}
+
 /*Returns the phase1 gtpid() value*/
 void getPid(systemArgs *args) {
     args->arg1 = ((void *) (long) getpid());
@@ -515,7 +606,6 @@ void removeFromChildList(procPtr3 process) {
         }    
         temp->nextSiblingPtr = temp->nextSiblingPtr->nextSiblingPtr;
     }    
-    process->status = EMPTY;
 }/* removeFromChildList */
 
 /* ------------------------------------------------------------------------
