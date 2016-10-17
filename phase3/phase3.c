@@ -268,38 +268,66 @@ void terminate(systemArgs *args) {
     quit(((int) (long) args->arg1));
 }
 
+/* ------------------------------------------------------------------------
+   Name - semCreate
+   Purpose - Creates a user-level semaphore.
+   Parameters - systemArgs *args, the arguments passed from libuser.c
+                args->arg1: initial semaphore value
+   Returns - void, sets arg values
+             args->arg1: index of semaphore
+             args->arg4: -1 if initial value is negative or no semaphore
+                         available; 0 otherwise.
+   Side Effects - semaphore is created in the semaphore table
+   ----------------------------------------------------------------------- */
 void semCreate(systemArgs *args) {
-    int index;
+    int index; // index of newly created semaphore
 
+    // initial semaphore value cannot be negaive
     if ((long) args->arg1 < 0) {
         args->arg4 = ((void *) (long) -1);
         return;
     }
 
+    // find empty semaphore in the semaphore table
     for (index = 0; index < MAXSEMS; index++) {
         if (semTable[index].status == EMPTY) {
             break;
         }
     }
 
+    // no available semaphore
     if (index == MAXSEMS) {
         args->arg4 = ((void *) (long) -1);
         return;
     }
 
+    // initialize values of semaphore
     semTable[index].status = ACTIVE;
     semTable[index].count = (long) args->arg1;
     semTable[index].blockedList = NULL;
     semTable[index].mboxID = MboxCreate(1, 0);
 
+    // return values set in args
     args->arg1 = ((void *) (long) index);
     args->arg4 = ((void *) (long) 0);
     setUserMode();
 }
 
+/* ------------------------------------------------------------------------
+   Name - semP
+   Purpose - Decrements the semaphore count by one. Blocks the process if the
+             count is zero.
+   Parameters - systemArgs *args, the arguments passed from libuser.c
+                args->arg1: index of semaphore in semaphore table
+   Returns - void, sets arg values
+             args->arg4: -1 if semaphore index is invalid, 0 otherwise.
+   Side Effects - Places a process on the block semphore list, if the count
+                  is zero.
+   ----------------------------------------------------------------------- */
 void semP(systemArgs *args) {
-    int semIndex = ((int) (long) args->arg1);
+    int semIndex = ((int) (long) args->arg1); // index to semaphore table
 
+	// if the index requested is an invalid index, return -1 through arg4
     if (semIndex < 0 || semIndex > MAXSEMS) {
         args->arg4 = ((void *) (long) -1);
         return;
@@ -307,22 +335,30 @@ void semP(systemArgs *args) {
 
     semStruct *semaphore = &semTable[semIndex];
 
+	// if the requested semaphore is not active, return -1 through arg4
     if (semaphore->status == EMPTY) {
         args->arg4 = ((void *) (long) -1);
         return;
     }
 
+    // process enters semaphore critical section
     MboxSend(semaphore->mboxID, NULL, 0);
+
+    // block process on the semaphore block list
     if (semaphore->count < 1) {
         addToSemBlockList(&procTable[getpid() % MAXPROC], semIndex);
-        MboxReceive(semaphore->mboxID, NULL, 0);
+        MboxReceive(semaphore->mboxID, NULL, 0); // release mutex
+
+        // block process on private mailbox
         MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
+
+        // mailbox was released while process was waiting to enter
         if (semaphore->status == EMPTY) {
             setUserMode();
             Terminate(1);
         }
     } else {
-        MboxReceive(semaphore->mboxID, NULL, 0);
+        MboxReceive(semaphore->mboxID, NULL, 0); // release mutex
     }
     semaphore->count--;
     args->arg4 = ((void *) (long) 0);
