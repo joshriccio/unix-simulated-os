@@ -54,7 +54,6 @@ int Spawn(char *name, int (*func)(char *), char *arg, int stack_size,
     return (long) sysArg.arg4;
 } /* end of Spawn */
 
-
 /*
  *  Routine:  Wait
  *
@@ -83,7 +82,6 @@ int Wait(int *pid, int *status)
     
 } /* end of Wait */
 
-
 /*
  *  Routine:  Terminate
  *
@@ -107,14 +105,15 @@ void Terminate(int status)
 
 } /* end of Terminate */
 
-
 /*
  *  Routine:  SemCreate
  *
  *  Description: Create a semaphore.
  *
- *  Arguments:
+ *  Arguments:   int value -- initial semaphore value
+ *               semaphore -- index to the semaphore
  *
+ *  Return Value: 0 means success, -1 means error occurs
  */
 int SemCreate(int value, int *semaphore)
 {
@@ -131,14 +130,14 @@ int SemCreate(int value, int *semaphore)
     return ((int) (long)sysArg.arg4);
 } /* end of SemCreate */
 
-
 /*
  *  Routine:  SemP
  *
  *  Description: "P" a semaphore.
  *
- *  Arguments:
+ *  Arguments:   semaphore -- index to the semaphore
  *
+ *  Return Value: 0 means success, -1 means error occurs
  */
 int SemP(int semaphore)
 {
@@ -153,14 +152,14 @@ int SemP(int semaphore)
     return ((int) (long)sysArg.arg4);
 } /* end of SemP */
 
-
 /*
  *  Routine:  SemV
  *
  *  Description: "V" a semaphore.
  *
- *  Arguments:
+ *  Arguments:   semaphore -- index to the semaphore
  *
+ *  Return Value: 0 means success, -1 means error occurs
  */
 int SemV(int semaphore)
 {
@@ -175,14 +174,14 @@ int SemV(int semaphore)
     return ((int) (long)sysArg.arg4);
 } /* end of SemV */
 
-
 /*
  *  Routine:  SemFree
  *
  *  Description: Free a semaphore.
  *
- *  Arguments:
+ *  Arguments:   semaphore -- index to the semaphore
  *
+ *  Return Value: 0 means success, -1 means error occurs, 1 processes blocked
  */
 int SemFree(int semaphore)
 {
@@ -204,8 +203,9 @@ int SemFree(int semaphore)
  *
  *  Description: This is the call entry point for getting the time of day.
  *
- *  Arguments:
+ *  Arguments:   int tod: location to store time of day
  *
+ *  Return Value: None
  */
 void GetTimeofDay(int *tod)                           
 {
@@ -225,8 +225,9 @@ void GetTimeofDay(int *tod)
  *
  *  Description: This is the call entry point for the process' CPU time.
  *
- *  Arguments:
+ *  Arguments:   int cpu: location to store cpu time
  *
+ *  Return Value: None
  */
 void CPUTime(int *cpu)                           
 {
@@ -246,8 +247,9 @@ void CPUTime(int *cpu)
  *
  *  Description: This is the call entry point for the process' PID.
  *
- *  Arguments:
+ *  Arguments:   int pid: location to store pid
  *
+ *  Return Value: None
  */
 void GetPID(int *pid)                           
 {
@@ -258,7 +260,7 @@ void GetPID(int *pid)
 
     USLOSS_Syscall(&sysArg);
 
-     *pid = ((int) (long)sysArg.arg1);
+    *pid = ((int) (long)sysArg.arg1);
 } /* end of GetPID */
 
 /* end libuser.c */

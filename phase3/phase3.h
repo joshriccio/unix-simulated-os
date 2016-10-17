@@ -6,33 +6,5 @@
 #define _PHASE3_H
 
 #define MAXSEMS         200
-#define MINPRIORITY     5
-#define MAXPRIORITY     1
-
-#define START2_PID      3
-#define START3_PID      4
-
-// process table status
-#define EMPTY           0
-#define ACTIVE          1
-#define WAIT_BLOCK      11
 
 #endif /* _PHASE3_H */
-
-typedef struct procStruct3 procStruct3;
-typedef struct procStruct3 * procPtr3;
-
-struct procStruct3 {
-   procPtr3        childProcPtr;    //
-   procPtr3        nextSiblingPtr;  // 
-   procPtr3        parentPtr;      // parent process
-   procPtr3        nextSemBlock;   // 
-   char            name[MAXNAME];  // process name
-   char            startArg[MAXARG]; // function arguments
-   short           pid;           // process ID
-   int             priority;      // process priority
-   int (* userFunc) (char *);     // process code
-   unsigned int    stackSize;     //
-   int             status;        // EMPTY or ACTIVE
-   int             mboxID;        // mailbox to block on
-};
