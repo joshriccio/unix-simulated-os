@@ -7,6 +7,8 @@
 #include <libuser.h>
 #include <assert.h>
 
+#include <phase4.h>
+
 #define ABS(a,b) (a-b > 0 ? a-b : -(a-b))
 
 int Child(char *arg) 

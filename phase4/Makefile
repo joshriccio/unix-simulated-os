@@ -4,7 +4,7 @@ ASSIGNMENT = 452phase4
 CC = gcc
 AR = ar
 # libuser4.o instead of libuser.o
-COBJS = phase4.o libuser.o p1.o
+COBJS = phase4.o libuser4.o p1.o
 CSRCS = ${COBJS:.o=.c}
 
 PHASE1LIB = patrickphase1
@@ -13,7 +13,7 @@ PHASE3LIB = patrickphase3
 #PHASE1LIB = patrickphase1debug
 #PHASE2LIB = patrickphase2debug
 
-HDRS = libuser.h sems.h phase1.h phase2.h phase3.h
+HDRS = libuser4.h driver.h phase1.h phase2.h phase3.h
 
 INCLUDE = ./usloss/include
 
@@ -51,7 +51,7 @@ $(TESTS):	$(TARGET)
 clean:
 	rm -f $(COBJS) $(TARGET) test*.txt test??.o test?? core term*.out
 
-phase4.o:	drivers.h
+phase4.o:	driver.h
 
 submit: $(CSRCS) $(HDRS) Makefile
 	tar cvzf phase4.tgz $(CSRCS) $(HDRS) Makefile
