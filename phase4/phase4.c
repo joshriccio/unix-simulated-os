@@ -1,4 +1,5 @@
 #include <usloss.h>
+#include <usyscall.h>
 #include <phase1.h>
 #include <phase2.h>
 #include <phase3.h>
@@ -7,32 +8,54 @@
 #include <driver.h>
 #include <stdlib.h> /* needed for atoi() */
 #include <stdio.h>  /* sprintf */
+#include <string.h>  /* strcpy */
 
+/* ------------------------- Prototypes ----------------------------------- */
+
+static int ClockDriver(char *);
+static int DiskDriver(char *);
+static int TermDriver(char *arg);
+void sleep(systemArgs *args);
+void diskRead(systemArgs *args);
+void diskWrite(systemArgs *args);
+void diskSize(systemArgs *args);
+void termRead(systemArgs *args);
+void termWrite(systemArgs *args);
 void checkKernelMode(char * processName);
 void enableInterrupts();
 
+/* -------------------------- Globals ------------------------------------- */
+
+// Process Table
+procStruct4 procTable[MAXPROC];
+
 int clockSemaphore;
-
-static int	ClockDriver(char *);
-static int	DiskDriver(char *);
-
-// TODO: Process Table
 
 void start3() {
     char	name[128];
-    char    diskbuf[10];
-    char    termbuf[10];
+    char    argBuffer[10];
     int		i;
     int		clockPID;
+    int		diskPID[USLOSS_DISK_UNITS];
+    int		termPID[USLOSS_TERM_UNITS];
     int		pid;
     int		status;
 
     // Check kernel mode here.
     checkKernelMode("start3");
 
-    // TODO: initialize all process table structs to EMPTY
+    // initialize all process table structs to EMPTY
+    for (int i = 0; i < MAXPROC; i++) {
+        procTable[i].status = EMPTY;
+    }
 
-    // TODO: initialize system call vector
+    // initialize system call vector
+    systemCallVec[SYS_SLEEP] = sleep;
+    systemCallVec[SYS_DISKREAD] = diskRead;
+    systemCallVec[SYS_DISKWRITE] = diskWrite;
+    systemCallVec[SYS_DISKSIZE] = diskSize;
+    systemCallVec[SYS_TERMREAD] = termRead;
+    systemCallVec[SYS_TERMWRITE] = termWrite;
 
     // Create clock device driver 
     clockSemaphore = semcreateReal(0);
@@ -41,7 +64,11 @@ void start3() {
         USLOSS_Console("start3(): Can't create clock driver\n");
         USLOSS_Halt(1);
     }
-    // TODO: add clockPID to process table
+
+    // add clockPID to process table
+    strcpy(procTable[clockPID % MAXPROC].name, "Clock driver");
+    procTable[clockPID % MAXPROC].pid = clockPID;
+    procTable[clockPID % MAXPROC].status = ACTIVE;
 
     // start3 blocks until clock driver is running
     sempReal(clockSemaphore);
@@ -54,20 +81,40 @@ void start3() {
 
     // create disk driver processes
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {
-        sprintf(diskbuf, "%d", i);
-        pid = fork1(name, DiskDriver, diskbuf, USLOSS_MIN_STACK, 2);
+        sprintf(argBuffer, "%d", i);
+        sprintf(name, "diskDriver%d", i);
+        pid = fork1(name, DiskDriver, argBuffer, USLOSS_MIN_STACK, 2);
         if (pid < 0) {
             USLOSS_Console("start3(): Can't create disk driver %d\n", i);
             USLOSS_Halt(1);
         }
+
+        diskPID[i] = pid; // store pid of disk driver processes for zapping
+
+        strcpy(procTable[pid % MAXPROC].name, name);
+        procTable[pid % MAXPROC].pid = pid;
+        procTable[pid % MAXPROC].status = ACTIVE;
     }
 
     // May be other stuff to do here before going on to terminal drivers
 
-    /*
-     * Create terminal device drivers.
-     */
+    // Create terminal device drivers.
+    for (i = 0; i < USLOSS_TERM_UNITS; i++) {
+        sprintf(argBuffer, "%d", i);
+        sprintf(name, "termDriver%d", i);
+        pid = fork1(name, TermDriver, argBuffer, USLOSS_MIN_STACK, 2);
+        if (pid < 0) {
+            USLOSS_Console("start3(): Can't create term driver %d\n", i);
+            USLOSS_Halt(1);
+        }
 
+        termPID[i] = pid; // store pid of term driver processes for zapping
+
+        strcpy(procTable[pid % MAXPROC].name, name);
+        procTable[pid % MAXPROC].pid = pid;
+        procTable[pid % MAXPROC].status = ACTIVE;
+    }
+    
 
     /*
      * Create first user-level process and wait for it to finish.
@@ -83,11 +130,20 @@ void start3() {
      * Zap the device drivers
      */
     zap(clockPID);  // clock driver
+    for (i = 0; i < USLOSS_DISK_UNITS; i++) {  // disk drivers
+        zap(diskPID[i]);
+    }
+    for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
+        zap(termPID[i]);
+    }
+
+    // join for drivers
+    while (join(&status) != -2)
 
     // eventually, at the end:
     quit(0);
     
-}
+} // start3
 
 static int ClockDriver(char *arg) {
     int result;
@@ -113,7 +169,41 @@ static int ClockDriver(char *arg) {
 }
 
 static int DiskDriver(char *arg) {
+    while(! isZapped()) {
+
+    }
     return 0;
+}
+
+static int TermDriver(char *arg) {
+    while(! isZapped()) {
+
+    }
+    return 0;
+}
+
+void sleep(systemArgs *args) {
+
+}
+
+void diskRead(systemArgs *args) {
+
+}
+
+void diskWrite(systemArgs *args) {
+
+}
+
+void diskSize(systemArgs *args) {
+
+}
+
+void termRead(systemArgs *args) {
+
+}
+
+void termWrite(systemArgs *args) {
+
 }
 
 /* Halt USLOSS if process is not in kernal mode */

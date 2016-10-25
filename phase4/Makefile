@@ -3,8 +3,8 @@ TARGET = libphase4.a
 ASSIGNMENT = 452phase4
 CC = gcc
 AR = ar
-# libuser4.o instead of libuser.o
-COBJS = phase4.o libuser4.o p1.o
+# libuser4.o instead of libuser.o // added libuser.o not sure why
+COBJS = phase4.o libuser4.o libuser.o p1.o
 CSRCS = ${COBJS:.o=.c}
 
 PHASE1LIB = patrickphase1
@@ -13,7 +13,7 @@ PHASE3LIB = patrickphase3
 #PHASE1LIB = patrickphase1debug
 #PHASE2LIB = patrickphase2debug
 
-HDRS = libuser4.h driver.h phase1.h phase2.h phase3.h
+HDRS = libuser4.h driver.h phase1.h phase2.h phase3.h phase4.h
 
 INCLUDE = ./usloss/include
 

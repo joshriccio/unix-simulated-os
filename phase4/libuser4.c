@@ -55,7 +55,7 @@ int DiskWrite (void *diskBuffer, int unit, int startTrack, int startSector,
     systemArgs sysArg;
         
     CHECKMODE;
-    sysArg.number = SYS_DISKREAD;
+    sysArg.number = SYS_DISKWRITE;
     sysArg.arg1 = diskBuffer;
     sysArg.arg2 = ((void *) (long) sectors);
     sysArg.arg3 = ((void *) (long) startTrack);
