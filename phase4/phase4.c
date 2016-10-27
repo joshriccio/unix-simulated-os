@@ -16,6 +16,7 @@ static int ClockDriver(char *);
 static int DiskDriver(char *);
 static int TermDriver(char *arg);
 void sleep(systemArgs *args);
+int sleepReal(int seconds);
 void diskRead(systemArgs *args);
 void diskWrite(systemArgs *args);
 void diskSize(systemArgs *args);
@@ -23,6 +24,8 @@ void termRead(systemArgs *args);
 void termWrite(systemArgs *args);
 void checkKernelMode(char * processName);
 void enableInterrupts();
+void addToProcessTable();
+void removeFromProcessTable();
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -30,6 +33,8 @@ void enableInterrupts();
 procStruct4 procTable[MAXPROC];
 
 int clockSemaphore;
+
+procPtr4 headSleepList;
 
 void start3() {
     char	name[128];
@@ -48,6 +53,9 @@ void start3() {
     for (int i = 0; i < MAXPROC; i++) {
         procTable[i].status = EMPTY;
     }
+
+    // initialize headSleepList
+    headSleepList = NULL;
 
     // initialize system call vector
     systemCallVec[SYS_SLEEP] = sleep;
@@ -163,27 +171,80 @@ static int ClockDriver(char *arg) {
 	 * Compute the current time and wake up any processes
 	 * whose time has come.
 	 */
-        // TODO:
+        while (headSleepList != NULL && 
+                headSleepList->awakeTime <= USLOSS_Clock()) {
+
+            // remove from sleep list
+            int mboxID = headSleepList->mboxID;
+            headSleepList = headSleepList->sleepPtr;
+            MboxSend(mboxID, NULL, 0);
+        }
     }
-    return 0; // TODO:
+    return 0;
 }
 
 static int DiskDriver(char *arg) {
+    int status;
+    int result;
     while(! isZapped()) {
-
+        result = waitDevice(USLOSS_DISK_DEV, atoi(arg), &status);
+        if (result != 0) {
+            return 0;
+        }
     }
     return 0;
 }
 
 static int TermDriver(char *arg) {
+    int status;
+    int result;
     while(! isZapped()) {
-
+        result = waitDevice(USLOSS_TERM_DEV, atoi(arg), &status);
+        if (result != 0) {
+            return 0;
+        }
     }
     return 0;
 }
 
 void sleep(systemArgs *args) {
+    int seconds = ((int) (long) args->arg1);
+    if (sleepReal(seconds) < 0) {
+        args->arg4 = ((void *) (long) -1);
+    } else {
+        args->arg4 = ((void *) (long) 0);
+    }
+}
 
+int sleepReal(int seconds) {
+    if (seconds < 0) {
+        return -1;
+    }
+
+    // add process to phase 4 process table
+    addToProcessTable();
+
+    int awakeTime = USLOSS_Clock() + (1000000 * seconds);
+    procTable[getpid() % MAXPROC].awakeTime = awakeTime;
+    if (headSleepList == NULL) {
+        headSleepList = &procTable[getpid() % MAXPROC];
+    } else {
+        procPtr4 temp = headSleepList;
+        while (temp->awakeTime < awakeTime) {
+            temp = temp->sleepPtr;
+        }
+        procPtr4 temp2 = temp->sleepPtr;
+        temp->sleepPtr = &procTable[getpid() % MAXPROC];
+        temp->sleepPtr->sleepPtr = temp2;
+    }
+
+    // block on private mailbox
+    MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
+
+    // remove from process table
+    removeFromProcessTable();
+
+    return 0;
 }
 
 void diskRead(systemArgs *args) {
@@ -218,4 +279,19 @@ void checkKernelMode(char * processName) {
 /* Enables Interrupts */
 void enableInterrupts() {
     USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
+}
+
+void addToProcessTable() {
+    procTable[getpid() % MAXPROC].pid = getpid();
+    procTable[getpid() % MAXPROC].status = ACTIVE;
+    procTable[getpid() % MAXPROC].mboxID = MboxCreate(0,0);
+    procTable[getpid() % MAXPROC].sleepPtr = NULL;
+}
+
+void removeFromProcessTable() {
+    MboxRelease(procTable[getpid() % MAXPROC].mboxID);
+    procTable[getpid() % MAXPROC].pid = -1;
+    procTable[getpid() % MAXPROC].status = EMPTY;
+    procTable[getpid() % MAXPROC].mboxID = -1;
+    procTable[getpid() % MAXPROC].sleepPtr = NULL;
 }
