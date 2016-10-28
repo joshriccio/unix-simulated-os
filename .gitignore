@@ -1,8 +1,10 @@
 #Git Ignore Doc for OS Project
 
 #Compiled testcases
-phase1/test*
-phase1/test*.o
+phase1/*
+phase2/*
+phase3/*
+phase4/test*
 
 #.out files
 *.out
@@ -18,12 +20,6 @@ phase1/usloss
 
 #Core files 
 core
-
-#libphase1.a
-phase1/libphase1.a
-
-# diffTests from testPhase1.sh
-phase1/diffTests
 
 # tags file
 tags
