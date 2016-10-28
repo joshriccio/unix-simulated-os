@@ -88,7 +88,7 @@ void start3() {
      */
 
     // create disk driver processes
-    for (i = 0; i < USLOSS_DISK_UNITS; i++) {
+    /*for (i = 0; i < USLOSS_DISK_UNITS; i++) {
         sprintf(argBuffer, "%d", i);
         sprintf(name, "diskDriver%d", i);
         pid = fork1(name, DiskDriver, argBuffer, USLOSS_MIN_STACK, 2);
@@ -102,12 +102,12 @@ void start3() {
         strcpy(procTable[pid % MAXPROC].name, name);
         procTable[pid % MAXPROC].pid = pid;
         procTable[pid % MAXPROC].status = ACTIVE;
-    }
+    }*/
 
     // May be other stuff to do here before going on to terminal drivers
 
     // Create terminal device drivers.
-    for (i = 0; i < USLOSS_TERM_UNITS; i++) {
+    /*for (i = 0; i < USLOSS_TERM_UNITS; i++) {
         sprintf(argBuffer, "%d", i);
         sprintf(name, "termDriver%d", i);
         pid = fork1(name, TermDriver, argBuffer, USLOSS_MIN_STACK, 2);
@@ -121,7 +121,7 @@ void start3() {
         strcpy(procTable[pid % MAXPROC].name, name);
         procTable[pid % MAXPROC].pid = pid;
         procTable[pid % MAXPROC].status = ACTIVE;
-    }
+    }*/
     
 
     /*
@@ -138,15 +138,18 @@ void start3() {
      * Zap the device drivers
      */
     zap(clockPID);  // clock driver
-    for (i = 0; i < USLOSS_DISK_UNITS; i++) {  // disk drivers
+    /*for (i = 0; i < USLOSS_DISK_UNITS; i++) {  // disk drivers
         zap(diskPID[i]);
     }
     for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
         zap(termPID[i]);
-    }
+    }*/
 
     // join for drivers
-    while (join(&status) != -2)
+    /*while (join(&status) != -2) {
+        USLOSS_Console("join status: %d\n", status);
+    }
+    USLOSS_Console("join status: %d\n", status);*/
 
     // eventually, at the end:
     quit(0);
@@ -184,26 +187,26 @@ static int ClockDriver(char *arg) {
 }
 
 static int DiskDriver(char *arg) {
-    int status;
+    /*int status;
     int result;
     while(! isZapped()) {
         result = waitDevice(USLOSS_DISK_DEV, atoi(arg), &status);
         if (result != 0) {
             return 0;
         }
-    }
+    }*/
     return 0;
 }
 
 static int TermDriver(char *arg) {
-    int status;
+    /*int status;
     int result;
     while(! isZapped()) {
         result = waitDevice(USLOSS_TERM_DEV, atoi(arg), &status);
         if (result != 0) {
             return 0;
         }
-    }
+    }*/
     return 0;
 }
 
@@ -230,12 +233,28 @@ int sleepReal(int seconds) {
         headSleepList = &procTable[getpid() % MAXPROC];
     } else {
         procPtr4 temp = headSleepList;
-        while (temp->awakeTime < awakeTime) {
+        while (1) {
+            if (temp->sleepPtr == NULL ) {
+                temp->sleepPtr = &procTable[getpid() % MAXPROC];
+                break;
+            } else if (temp->sleepPtr->awakeTime < awakeTime) {
+                temp = temp->sleepPtr;
+            } else {
+                procPtr4 temp2 = temp->sleepPtr;
+                temp->sleepPtr = &procTable[getpid() % MAXPROC];
+                temp->sleepPtr->sleepPtr = temp2;
+                break;
+            }
+        }
+        /*procPtr4 temp = headSleepList;
+        while (temp != NULL && temp->awakeTime <= awakeTime) {
             temp = temp->sleepPtr;
         }
-        procPtr4 temp2 = temp->sleepPtr;
-        temp->sleepPtr = &procTable[getpid() % MAXPROC];
-        temp->sleepPtr->sleepPtr = temp2;
+        if (temp != NULL) {
+            procPtr4 temp2 = temp->sleepPtr;
+            temp->sleepPtr = &procTable[getpid() % MAXPROC];
+            temp->sleepPtr->sleepPtr = temp2;
+        }*/
     }
 
     // block on private mailbox
