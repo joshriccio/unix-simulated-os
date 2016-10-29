@@ -28,7 +28,10 @@ void checkKernelMode(char * processName);
 void enableInterrupts();
 void addToProcessTable();
 void removeFromProcessTable();
-
+void diskReadHandler();
+void diskWriteHandler();
+void diskSeekHandler();
+void diskTracksHandler();
 /* -------------------------- Globals ------------------------------------- */
 
 // Process Table
@@ -146,6 +149,8 @@ void start3() {
      */
     zap(clockPID);  // clock driver
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {  // disk drivers
+        //Unblock the diskdrivers
+        semvReal(diskSemaphore[i]);
         zap(diskPID[i]);
     }
     /*for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
@@ -191,26 +196,30 @@ static int DiskDriver(char *arg) {
     int result;
     int unit = atoi(arg);
 
-    sempReal(diskSemaphore[unit]);
-
     while(! isZapped()) {
-        switch (headDiskList->resquestType) {
-            case USLOSS_DISK_READ:
-                diskReadHandler();
-                break;
-            case USLOSS_DISK_WRITE:
-                diskWriteHandler();
-                break;
-            case USLOSS_DISK_SEEK:
-                diskSeekHandler();
-                break;
-            case USLOSS_DISK_TRACKS:
-                diskTracksHandler();
-                break;
-            case default:
-                USLOSS_Console("DiskDriver: Invalid disk request.\n");
-        }
-    }
+		//If there is a request, process it, else block and wait
+		if(headDiskList != NULL){
+        	switch (headDiskList->requestType) {
+            	case USLOSS_DISK_READ:
+                	diskReadHandler();
+                	break;
+            	case USLOSS_DISK_WRITE:
+                	diskWriteHandler();
+                	break;
+            	case USLOSS_DISK_SEEK:
+                	diskSeekHandler();
+                	break;
+            	case USLOSS_DISK_TRACKS:
+                	diskTracksHandler();
+                	break;
+            	default:
+                	USLOSS_Console("DiskDriver: Invalid disk request.\n");
+        	}
+		}else{
+			//Block and wait for a new request
+			sempReal(diskSemaphore[unit]);
+		}
+	}	
     return 0;
 }
 
@@ -218,15 +227,16 @@ void diskReadHandler() {
     char sectorBuffer[512];
     int bufferIndex = 0;
     int status;
+    int result;
 
     USLOSS_DeviceRequest devRequest;
     devRequest.opr = USLOSS_DISK_READ;
     devRequest.reg2 = sectorBuffer;
 
     for (int i = 0; i < headDiskList->sectors; i++) {
-        devRequest.reg1 = headDiskList->startSector + i;
+        devRequest.reg1 = ((void *) (long) (headDiskList->startSector + i));
 
-        USLOSS_Device_Output(USLOSS_DISK_DEV, headDiskList->unit, &devRequest);
+        USLOSS_DeviceOutput(USLOSS_DISK_DEV, headDiskList->unit, &devRequest);
         result = waitDevice(USLOSS_DISK_DEV, headDiskList->unit, &status);
         if (status == USLOSS_DEV_ERROR) {
             headDiskList->status = status;
@@ -241,6 +251,15 @@ void diskReadHandler() {
                 512);
         bufferIndex += 512;
     }
+}
+
+void diskWriteHandler(){
+}
+
+void diskSeekHandler(){
+}
+
+void diskTracksHandler(){
 }
 
 static int TermDriver(char *arg) {
@@ -356,7 +375,7 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
 
     semvReal(diskSemaphore[unit]);
 
-    MboxReceive(procTable[getpid() % MAXPROC].mboxID);
+    MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
 
     return info.status;
 }
