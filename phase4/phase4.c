@@ -197,9 +197,9 @@ static int DiskDriver(char *arg) {
     int unit = atoi(arg);
 
     while(! isZapped()) {
-		//If there is a request, process it, else block and wait
-		if(headDiskList != NULL){
-        	switch (headDiskList->requestType) {
+	//If there is a request, process it, else block and wait
+	if(headDiskList != NULL){
+            switch (headDiskList->requestType) {
             	case USLOSS_DISK_READ:
                 	diskReadHandler();
                 	break;
@@ -214,12 +214,12 @@ static int DiskDriver(char *arg) {
                 	break;
             	default:
                 	USLOSS_Console("DiskDriver: Invalid disk request.\n");
-        	}
-		}else{
-			//Block and wait for a new request
-			sempReal(diskSemaphore[unit]);
-		}
-	}	
+            }
+	}else{
+	    //Block and wait for a new request
+	    sempReal(diskSemaphore[unit]);
+	}
+    }	
     return 0;
 }
 
