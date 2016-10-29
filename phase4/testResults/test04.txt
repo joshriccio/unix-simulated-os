@@ -1,0 +1,6 @@
+start4(): Read a negative number of characters from
+          terminal 1. Write to terminal -1. Should get 
+          -1 from both operations since they have
+          invalid arguments.
+start4(): Done with test of illegal terminal parameters
+All processes completed.

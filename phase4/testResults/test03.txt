@@ -1,0 +1,7 @@
+start4(): started
+XXterm2(): started
+XXterm2(): after TermRead()
+XXterm2(): term2 read 16 bytes: two: first line
+XXterm2(): Terminating
+start4(): XXterm2 completed. kidpid = 21, pid = 21
+All processes completed.

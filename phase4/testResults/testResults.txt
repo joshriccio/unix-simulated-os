@@ -1,0 +1,673 @@
+test00 results
+
+start4(): Start 5 children who all sleep for 10 seconds. Upon
+          waking up, each child checks if its sleep time was at
+          least 10 seconds.
+Child1(): Going to sleep for 10 seconds
+Child2(): Going to sleep for 10 seconds
+Child3(): Going to sleep for 10 seconds
+Child4(): Going to sleep for 10 seconds
+Child5(): Going to sleep for 10 seconds
+Child1(): Sleep done at time 10110089
+Child2(): Sleep done at time 10110117
+Child3(): Sleep done at time 10110142
+Child4(): Sleep done at time 10110171
+Child5(): Sleep done at time 10110198
+start4(): Test sleep done.
+All processes completed.
+-------------------------------------------
+
+test01 results
+
+start4(): Spawning Child(0)
+start4(): Spawning Child(1)
+start4(): Spawning Child(2)
+start4(): Spawning Child(3)
+start4(): Spawning Child(4)
+start4(): Spawning Child(5)
+start4(): Spawning Child(6)
+start4(): Spawning Child(7)
+start4(): Spawning Child(8)
+start4(): Spawning Child(9)
+start4(): Waiting on Child
+Child0(): Sleeping for 30 seconds
+Child1(): Sleeping for 27 seconds
+Child2(): Sleeping for 24 seconds
+Child3(): Sleeping for 21 seconds
+Child4(): Sleeping for 18 seconds
+Child5(): Sleeping for 15 seconds
+Child6(): Sleeping for 12 seconds
+Child7(): Sleeping for 9 seconds
+Child8(): Sleeping for 6 seconds
+Child9(): Sleeping for 3 seconds
+Child9(): After sleeping 3 seconds, diff in sys_clock is 3039625
+start4(): Wait returned 0, pid:30, status 19
+start4(): Waiting on Child
+Child8(): After sleeping 6 seconds, diff in sys_clock is 6039649
+start4(): Wait returned 0, pid:29, status 18
+start4(): Waiting on Child
+Child7(): After sleeping 9 seconds, diff in sys_clock is 9039679
+start4(): Wait returned 0, pid:28, status 17
+start4(): Waiting on Child
+Child6(): After sleeping 12 seconds, diff in sys_clock is 12039713
+start4(): Wait returned 0, pid:27, status 16
+start4(): Waiting on Child
+Child5(): After sleeping 15 seconds, diff in sys_clock is 15039733
+start4(): Wait returned 0, pid:26, status 15
+start4(): Waiting on Child
+Child4(): After sleeping 18 seconds, diff in sys_clock is 18039768
+start4(): Wait returned 0, pid:25, status 14
+start4(): Waiting on Child
+Child3(): After sleeping 21 seconds, diff in sys_clock is 21039800
+start4(): Wait returned 0, pid:24, status 13
+start4(): Waiting on Child
+Child2(): After sleeping 24 seconds, diff in sys_clock is 24039828
+start4(): Wait returned 0, pid:23, status 12
+start4(): Waiting on Child
+Child1(): After sleeping 27 seconds, diff in sys_clock is 27039854
+start4(): Wait returned 0, pid:22, status 11
+start4(): Waiting on Child
+Child0(): After sleeping 30 seconds, diff in sys_clock is 30039880
+start4(): Wait returned 0, pid:21, status 10
+All processes completed.
+-------------------------------------------
+
+test02 results
+
+start4(): started
+XXterm2(): started
+XXterm2(): after TermRead()
+XXterm2(): term2 read 16 bytes: two: first line
+XXterm2(): Terminating
+start4(): XXterm2 completed. kidpid = 21, pid = 21
+All processes completed.
+-------------------------------------------
+
+test03 results
+
+start4(): Read a negative number of characters from terminal 1.
+          Write to terminal -1.  Should get back a -1 from both
+          operations since they have invalid arguments.
+start4(): Done with test of illegal terminal parameters.
+All processes completed.
+
+term0.out
+term1.out
+term2.out
+term3.out
+-------------------------------------------
+
+test04 results
+
+start4(): Read bytes from terminal 1, but ask for fewer bytes
+          than are present on the first line.
+start4(): term1 read 13 bytes, first 13 bytes: `one: first li'
+start4(): simple terminal test is done.
+All processes completed.
+-------------------------------------------
+
+test05 results
+
+start4(): Spawn two children.  Child1 writes one line to
+          terminal 1. Child2 reads one line from terminal 1.
+Child2(): read 16 characters from terminal 1
+Child2(): read `one: first line
+'
+Child2(): Terminating
+Child1(): Terminating
+start4(): done.
+All processes completed.
+
+term0.out
+term1.out
+A Something interesting to print here...
+term2.out
+term3.out
+-------------------------------------------
+
+test06 results
+
+start4(): Spawn 4 children.  Each child writes one line to
+          each terminal
+start4(): calling Wait
+Child(0): started
+Child(1): started
+Child(2): started
+Child(3): started
+Child(0): done with write 0
+Child(1): done with write 0
+Child(0): done with write 1
+Child(1): done with write 1
+Child(0): done with write 2
+Child(2): done with write 0
+Child(1): done with write 2
+Child(0): done with write 3
+Child(0): terminating
+Child(3): done with write 0
+Child(2): done with write 1
+Child(1): done with write 3
+Child(1): terminating
+Child(3): done with write 1
+Child(2): done with write 2
+Child(3): done with write 2
+Child(2): done with write 3
+Child(2): terminating
+Child(3): done with write 3
+Child(3): terminating
+start4(): calling Terminate
+All processes completed.
+
+term0.out
+Child 0: A Something interesting to print here...zero
+Child 1: A Something interesting to print here...one
+Child 2: A Something interesting to print here...second
+Child 3: A Something interesting to print here...three
+term1.out
+Child 0: A Something interesting to print here...zero
+Child 1: A Something interesting to print here...one
+Child 2: A Something interesting to print here...second
+Child 3: A Something interesting to print here...three
+term2.out
+Child 0: A Something interesting to print here...zero
+Child 1: A Something interesting to print here...one
+Child 2: A Something interesting to print here...second
+Child 3: A Something interesting to print here...three
+term3.out
+Child 0: A Something interesting to print here...zero
+Child 1: A Something interesting to print here...one
+Child 2: A Something interesting to print here...second
+Child 3: A Something interesting to print here...three
+-------------------------------------------
+
+test07 results
+
+start4(): Spawn four children.  Each child reads fm a different
+          terminal.  The child reading the shortest line will
+          finish first, etc.
+Child0(): start
+Child1(): start
+Child2(): start
+Child3(): start
+Child1(): read one: first line
+Child2(): read two: first line
+Child0(): read zero: first line
+Child3(): read three: first line
+start4(): done.
+All processes completed.
+-------------------------------------------
+
+test08 results
+
+start4(): started
+start4(): unit 0, sector size 512, track size 16, disk size 16
+start4(): unit 1, sector size 512, track size 16, disk size 32
+start4(): calling Terminate
+All processes completed.
+-------------------------------------------
+
+test09 results
+
+start4(): started
+start4(): unit 0, sector size 512, track size 16, disk size 16
+start4(): unit 1, sector size 512, track size 16, disk size 32
+
+start4(): writing to disk 0, track 5, sector 0
+start4(): DiskWrite returned status = 0
+
+start4(): reading from disk 0, track 5, sector 0
+start4(): DiskRead returned status = 0
+start4(): disk_buf_B contains:
+A wonderful message to put on the disk...
+start4(): calling Terminate
+All processes completed.
+-------------------------------------------
+
+test10 results
+
+start4(): Testing disk 0
+start4(): Read from disk: This is a test
+
+start4(): Read from disk: Does it work?
+
+start4(): Read from disk: One last chance
+
+start4(): Testing disk 1
+start4(): Read from disk: This is a test
+
+start4(): Read from disk: Does it work?
+
+start4(): Read from disk: One last chance
+
+start4(): Terminating
+All processes completed.
+-------------------------------------------
+
+test11 results
+
+start4(): Writing data to 3 disk sectors, then reading them back
+          Confirm that data read back matches data read in
+start4(): Testing Disk 0
+start4(): Test of disk 0 succeeded.
+start4(): Testing Disk 1
+start4(): Test of disk 1 succeeded.
+start4(): Done.
+All processes completed.
+-------------------------------------------
+
+test12 results
+
+start4(): Writing data to 3 disk sectors, wrapping to next track
+
+start4(): Disk 0:
+start4(): Read from disk: This is a test
+
+start4(): Read from disk: Does it work?
+
+start4(): Read from disk: One last chance
+
+
+start4(): Disk 1:
+start4(): Read from disk: This is a test
+
+start4(): Read from disk: Does it work?
+
+start4(): Read from disk: One last chance
+
+All processes completed.
+-------------------------------------------
+
+test13 results
+
+start4(): disk scheduling test, create 4 processes that write
+          various places on the disk.  After the 4 processes are
+          done, start4 reads the 4 locations & prints the
+          results.  Uses disk 1.
+start4(): read: One flew East
+start4(): read: One flew West
+start4(): read: One flew over the coo-coo's nest
+start4(): read: --did it work?
+start4(): done 111
+All processes completed.
+-------------------------------------------
+
+test14 results
+
+start4(): Attempt to write to a non-existant disk, disk 3
+start4(): done
+All processes completed.
+-------------------------------------------
+
+test15 results
+
+start4(): disk scheduling test, 8 children
+          algorithm test           
+          different tracks
+going to write track 5
+going to write track 3
+going to write track 9
+going to write track 0
+going to write track 7
+going to write track 2
+going to write track 1
+going to write track 6
+after writing track 5
+process 21 quit with status 2
+after writing track 6
+process 28 quit with status 9
+after writing track 7
+process 25 quit with status 6
+after writing track 9
+process 23 quit with status 4
+after writing track 0
+process 24 quit with status 5
+after writing track 1
+process 27 quit with status 8
+after writing track 2
+process 26 quit with status 7
+after writing track 3
+process 22 quit with status 3
+start4(): done 33
+All processes completed.
+-------------------------------------------
+
+test16 results
+
+start4(): disk scheduling test, 8 children
+          algorithm test           
+	      same track different sectors
+going to write to sector 5
+going to write to sector 3
+going to write to sector 9
+going to write to sector 0
+going to write to sector 7
+going to write to sector 2
+going to write to sector 1
+going to write to sector 6
+after writing to sector 5
+process 21 quit with status 2
+after writing to sector 3
+process 22 quit with status 3
+after writing to sector 9
+process 23 quit with status 4
+after writing to sector 0
+process 24 quit with status 5
+after writing to sector 7
+process 25 quit with status 6
+after writing to sector 2
+process 26 quit with status 7
+after writing to sector 1
+process 27 quit with status 8
+after writing to sector 6
+process 28 quit with status 9
+start4(): done 33
+All processes completed.
+-------------------------------------------
+
+test17 results
+
+start4(): disk scheduling test, create 6 processes that write
+          3 to disk0         
+          3 to disk1         
+ubiq0: going to write to track 5
+ubiq0: going to write to track 3
+ubiq0: going to write to track 9
+ubiq1: going to write to track 4
+ubiq1: going to write to track 2
+ubiq1: going to write to track 8
+ubiq0: after writing to track 5
+process 21 quit with status 2
+ubiq1: after writing to track 4
+process 24 quit with status 5
+ubiq0: after writing to track 9
+process 23 quit with status 4
+ubiq1: after writing to track 8
+process 26 quit with status 7
+ubiq0: after writing to track 3
+process 22 quit with status 3
+ubiq1: after writing to track 2
+process 25 quit with status 6
+start4(): done 31
+All processes completed.
+-------------------------------------------
+
+test18 results
+
+start4(): Spawn four children.  Each child reads fm a different
+          terminal.  The child reading the shortest line will
+          finish first, etc.
+start4(): Spawn four children.  Each child writes to a different
+          terminal.
+Child0(): start
+Child1(): start
+Child2(): start
+Child3(): start
+Child1(): read one: first line
+Child2(): read two: first line
+Child0(): read zero: first line
+Child3(): read three: first line
+start4(): done.
+All processes completed.
+
+term0.out
+Child 0: A Something interesting to print here...
+term1.out
+Child 1: A Something interesting to print here...
+term2.out
+Child 2: A Something interesting to print here...
+term3.out
+Child 3: A Something interesting to print here...
+-------------------------------------------
+
+test19 results
+
+start4(): Spawn eight children.  
+          4 write 5 lines to a diff terminal.
+          4 read 5 lines to a diff terminal.
+Child0(): start
+Child_20(): start
+Child_20(): writing to term0
+Child1(): start
+Child_21(): start
+Child_21(): writing to term1
+Child2(): start
+Child_22(): start
+Child_22(): writing to term2
+Child3(): start
+Child_23(): start
+Child_23(): writing to term3
+Child1(): read one: first line
+Child2(): read two: first line
+Child0(): read ero: first line
+Child3(): read three: first line
+Child1(): read one: second line
+Child2(): read two: second line
+Child0(): read zero: second line
+Child3(): read three: second line
+Child_21(): writing to term1
+Child_20(): writing to term0
+Child_23(): writing to term3
+Child_22(): writing to term2
+Child1(): read one: third line, longer than previous ones
+Child2(): read two: third line, longer than previous ones
+Child0(): read zero: third line, longer than previous ones
+Child3(): read three: third line, longer than previous ones
+Child_21(): writing to term1
+Child_20(): writing to term0
+Child_23(): writing to term3
+Child_22(): writing to term2
+Child1(): read one: fourth line, will be 80 characters long when I get through typing it in..
+Child2(): read two: fourth line, will be 80 characters long when I get through typing it in..
+Child0(): read zero: fourth line, will be 80 characters long when I get through typing it in.
+Child3(): read three: fourth line, will be 80 characters long when I get through typing it in
+Child1(): read one: fifth line
+Child1(): done
+Child2(): read two: fifth line
+Child2(): done
+Child0(): read zero: fifth line
+Child0(): done
+Child3(): read three: fifth line
+Child3(): done
+Child_21(): writing to term1
+Child_20(): writing to term0
+Child_23(): writing to term3
+Child_22(): writing to term2
+Child_21(): writing to term1
+Child_20(): writing to term0
+Child_23(): writing to term3
+Child_22(): writing to term2
+start4(): done.
+All processes completed.
+
+term0.out
+Child 0: A Something interesting to print here... line 0 zero
+Child 0: A Something interesting to print here... line 1 zero
+Child 0: A Something interesting to print here... line 2 zero
+Child 0: A Something interesting to print here... line 3 zero
+Child 0: A Something interesting to print here... line 4 zero
+term1.out
+Child 1: A Something interesting to print here... line 0 one
+Child 1: A Something interesting to print here... line 1 one
+Child 1: A Something interesting to print here... line 2 one
+Child 1: A Something interesting to print here... line 3 one
+Child 1: A Something interesting to print here... line 4 one
+term2.out
+Child 2: A Something interesting to print here... line 0 second
+Child 2: A Something interesting to print here... line 1 second
+Child 2: A Something interesting to print here... line 2 second
+Child 2: A Something interesting to print here... line 3 second
+Child 2: A Something interesting to print here... line 4 second
+term3.out
+Child 3: A Something interesting to print here... line 0 three
+Child 3: A Something interesting to print here... line 1 three
+Child 3: A Something interesting to print here... line 2 three
+Child 3: A Something interesting to print here... line 3 three
+Child 3: A Something interesting to print here... line 4 three
+-------------------------------------------
+
+test20 results
+
+start4(): Spawn one child.
+Child0(): start
+Child0(): buffer read from term0 ==== zero: first line
+Child0(): buffer read from term0 ==== zero: second line
+Child0(): buffer read from term0 ==== zero: third line, longer than previous ones
+Child0(): buffer read from term0 ==== zero: fourth line, will be 80 characters long when I get through typing it in.
+Child0(): buffer read from term0 ==== zero: fifth line
+Child0(): buffer read from term0 ==== zero: sixth line
+Child0(): buffer read from term0 ==== zero: seventh line
+Child0(): buffer read from term0 ==== zero: eighth line
+Child0(): buffer read from term0 ==== zero: ninth line
+Child0(): buffer read from term0 ==== zero: tenth line
+Child0(): done
+start4(): done.
+All processes completed.
+
+term0.out
+zero: first line
+zero: second line
+zero: third line, longer than previous ones
+zero: fourth line, will be 80 characters long when I get through typing it in.
+zero: fifth line
+zero: sixth line
+zero: seventh line
+zero: eighth line
+zero: ninth line
+zero: tenth line
+term1.out
+term2.out
+term3.out
+-------------------------------------------
+
+test21 results
+
+start4(): Spawn four children.
+Child0(): start
+Child1(): start
+Child2(): start
+Child3(): start
+buffer written one: first line
+ 
+buffer written two: first line
+ 
+buffer written zero: first line
+ 
+buffer written three: first line
+ 
+buffer written one: second line
+ 
+buffer written two: second line
+ 
+buffer written zero: second line
+ 
+buffer written three: second line
+ 
+buffer written one: third line, longer than previous ones
+ 
+buffer written two: third line, longer than previous ones
+ 
+buffer written zero: third line, longer than previous ones
+ 
+buffer written three: third line, longer than previous ones
+ 
+buffer written one: fourth line, will be 80 characters long when I get through typing it in..
+ 
+buffer written two: fourth line, will be 80 characters long when I get through typing it in..
+ 
+buffer written zero: fourth line, will be 80 characters long when I get through typing it in.
+ 
+buffer written three: fourth line, will be 80 characters long when I get through typing it in
+ 
+buffer written one: fifth line
+ 
+buffer written two: fifth line
+ 
+buffer written zero: fifth line
+ 
+buffer written three: fifth line
+ 
+Child1(): done
+Child2(): done
+Child0(): done
+Child3(): done
+start4(): done.
+All processes completed.
+
+term0.out
+zero: first line
+zero: second line
+zero: third line, longer than previous ones
+zero: fourth line, will be 80 characters long when I get through typing it in.
+zero: fifth line
+term1.out
+one: first line
+one: second line
+one: third line, longer than previous ones
+one: fourth line, will be 80 characters long when I get through typing it in..
+one: fifth line
+term2.out
+two: first line
+two: second line
+two: third line, longer than previous ones
+two: fourth line, will be 80 characters long when I get through typing it in..
+two: fifth line
+term3.out
+three: first line
+three: second line
+three: third line, longer than previous ones
+three: fourth line, will be 80 characters long when I get through typing it in
+three: fifth line
+-------------------------------------------
+
+test22 results
+
+start4(): Spawning 5 children to sleep
+ChildS(0): Sleeping for 5 seconds
+ChildS(1): Sleeping for 4 seconds
+ChildS(2): Sleeping for 3 seconds
+ChildS(3): Sleeping for 2 seconds
+ChildS(4): Sleeping for 1 seconds
+start4(): Spawning 2 children to termfuncs
+ChildTR(): start
+start4(): Spawning 4 children to diskfuncs
+
+ChildDW0(): writing to disk 0, track 5, sector 0
+
+ChildDW1(): writing to disk 1, track 5, sector 0
+
+ChildR0(): reading from disk 0, track 5, sector 0
+
+ChildR1(): reading from disk 1, track 5, sector 0
+ChildDW0(): DiskWrite0 returned status = 0
+ChildDW1(): DiskWrite1 returned status = 0
+ChildR0(): DiskRead returned status = 0
+ChildR0(): disk_buf_B contains:
+ChildDW0(): A wonderful message to put on the disk...
+ChildR1(): DiskRead returned status = 0
+ChildR1(): disk_buf_B contains:
+ChildDW1(): A wonderful message to put on the disk...
+ChildS(4): After sleeping 1 seconds, diff in sys_clock is 1038304
+ChildTR(): terminal 0, read_length = 17
+ChildTR(): read from term0: read zero: first line
+ChildTR(): terminal 1, read_length = 16
+ChildTR(): read from term1: read one: first line
+ChildTR(): terminal 2, read_length = 16
+ChildTR(): read from term2: read two: first line
+ChildTR(): terminal 3, read_length = 18
+ChildTR(): read from term3: read three: first line
+ChildTR(): done
+ChildS(3): After sleeping 2 seconds, diff in sys_clock is 2038406
+ChildS(2): After sleeping 3 seconds, diff in sys_clock is 3038516
+ChildS(1): After sleeping 4 seconds, diff in sys_clock is 4038615
+ChildS(0): After sleeping 5 seconds, diff in sys_clock is 5038704
+start4(): done.
+All processes completed.
+
+term0.out
+ChildTW(): A Something interesting to print to term 0 ...
+term1.out
+ChildTW(): A Something interesting to print to term 1 ...
+term2.out
+ChildTW(): A Something interesting to print to term 2 ...
+term3.out
+ChildTW(): A Something interesting to print to term 3 ...
+-------------------------------------------
