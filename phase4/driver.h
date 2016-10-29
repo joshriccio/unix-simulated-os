@@ -3,6 +3,7 @@
 #define ACTIVE          1
 
 typedef struct procStruct4 *procPtr4;
+typedef struct diskDriverInfo *diskDriverInfoPtr;
 
 typedef struct procStruct4 {
    procPtr4        childProcPtr;     // process's children 
@@ -19,3 +20,15 @@ typedef struct procStruct4 {
    int             status;           // EMPTY or ACTIVE
    int             mboxID;           // mailbox to block on
 } procStruct4;
+
+typedef struct diskDriverInfo {
+    int requestType;
+    int unit;
+    int startTrack;
+    int startSector;
+    int sectors;
+    void *buffer;
+    int mboxID;
+    int status;
+    diskDriverInfoPtr next;
+} diskDriverInfo;

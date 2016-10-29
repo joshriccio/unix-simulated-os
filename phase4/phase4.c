@@ -18,6 +18,8 @@ static int TermDriver(char *arg);
 void sleep(systemArgs *args);
 int sleepReal(int seconds);
 void diskRead(systemArgs *args);
+int diskReadReal(int unit, int startTrack, int startSector, int sectors, 
+        void *buffer);
 void diskWrite(systemArgs *args);
 void diskSize(systemArgs *args);
 void termRead(systemArgs *args);
@@ -33,8 +35,10 @@ void removeFromProcessTable();
 procStruct4 procTable[MAXPROC];
 
 int clockSemaphore;
+int diskSemaphore[USLOSS_DISK_UNITS];
 
 procPtr4 headSleepList;
+diskDriverInfoPtr headDiskList;
 
 void start3() {
     char	name[128];
@@ -52,10 +56,12 @@ void start3() {
     // initialize all process table structs to EMPTY
     for (int i = 0; i < MAXPROC; i++) {
         procTable[i].status = EMPTY;
+        procTable[i].pid = -1;
     }
 
-    // initialize headSleepList
+    // initialize headSleepList TODO:
     headSleepList = NULL;
+    headDiskList = NULL;
 
     // initialize system call vector
     systemCallVec[SYS_SLEEP] = sleep;
@@ -88,7 +94,8 @@ void start3() {
      */
 
     // create disk driver processes
-    /*for (i = 0; i < USLOSS_DISK_UNITS; i++) {
+    for (i = 0; i < USLOSS_DISK_UNITS; i++) {
+        diskSemaphore[i] = semcreateReal(0);
         sprintf(argBuffer, "%d", i);
         sprintf(name, "diskDriver%d", i);
         pid = fork1(name, DiskDriver, argBuffer, USLOSS_MIN_STACK, 2);
@@ -102,7 +109,7 @@ void start3() {
         strcpy(procTable[pid % MAXPROC].name, name);
         procTable[pid % MAXPROC].pid = pid;
         procTable[pid % MAXPROC].status = ACTIVE;
-    }*/
+    }
 
     // May be other stuff to do here before going on to terminal drivers
 
@@ -138,20 +145,13 @@ void start3() {
      * Zap the device drivers
      */
     zap(clockPID);  // clock driver
-    /*for (i = 0; i < USLOSS_DISK_UNITS; i++) {  // disk drivers
+    for (i = 0; i < USLOSS_DISK_UNITS; i++) {  // disk drivers
         zap(diskPID[i]);
     }
-    for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
+    /*for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
         zap(termPID[i]);
     }*/
 
-    // join for drivers
-    /*while (join(&status) != -2) {
-        USLOSS_Console("join status: %d\n", status);
-    }
-    USLOSS_Console("join status: %d\n", status);*/
-
-    // eventually, at the end:
     quit(0);
     
 } // start3
@@ -187,15 +187,60 @@ static int ClockDriver(char *arg) {
 }
 
 static int DiskDriver(char *arg) {
-    /*int status;
+    int status;
     int result;
+    int unit = atoi(arg);
+
+    sempReal(diskSemaphore[unit]);
+
     while(! isZapped()) {
-        result = waitDevice(USLOSS_DISK_DEV, atoi(arg), &status);
-        if (result != 0) {
-            return 0;
+        switch (headDiskList->resquestType) {
+            case USLOSS_DISK_READ:
+                diskReadHandler();
+                break;
+            case USLOSS_DISK_WRITE:
+                diskWriteHandler();
+                break;
+            case USLOSS_DISK_SEEK:
+                diskSeekHandler();
+                break;
+            case USLOSS_DISK_TRACKS:
+                diskTracksHandler();
+                break;
+            case default:
+                USLOSS_Console("DiskDriver: Invalid disk request.\n");
         }
-    }*/
+    }
     return 0;
+}
+
+void diskReadHandler() {
+    char sectorBuffer[512];
+    int bufferIndex = 0;
+    int status;
+
+    USLOSS_DeviceRequest devRequest;
+    devRequest.opr = USLOSS_DISK_READ;
+    devRequest.reg2 = sectorBuffer;
+
+    for (int i = 0; i < headDiskList->sectors; i++) {
+        devRequest.reg1 = headDiskList->startSector + i;
+
+        USLOSS_Device_Output(USLOSS_DISK_DEV, headDiskList->unit, &devRequest);
+        result = waitDevice(USLOSS_DISK_DEV, headDiskList->unit, &status);
+        if (status == USLOSS_DEV_ERROR) {
+            headDiskList->status = status;
+            headDiskList = headDiskList->next;
+            return;
+        }
+        if (result != 0) {
+            return;
+        }
+
+        memcpy(((char *) headDiskList->buffer) + bufferIndex, sectorBuffer, 
+                512);
+        bufferIndex += 512;
+    }
 }
 
 static int TermDriver(char *arg) {
@@ -246,15 +291,6 @@ int sleepReal(int seconds) {
                 break;
             }
         }
-        /*procPtr4 temp = headSleepList;
-        while (temp != NULL && temp->awakeTime <= awakeTime) {
-            temp = temp->sleepPtr;
-        }
-        if (temp != NULL) {
-            procPtr4 temp2 = temp->sleepPtr;
-            temp->sleepPtr = &procTable[getpid() % MAXPROC];
-            temp->sleepPtr->sleepPtr = temp2;
-        }*/
     }
 
     // block on private mailbox
@@ -267,7 +303,62 @@ int sleepReal(int seconds) {
 }
 
 void diskRead(systemArgs *args) {
+    int result;
+    
+    void *buffer = args->arg1;
+    int sectors = ((int) (long) args->arg2);
+    int startTrack = ((int) (long) args->arg3);
+    int startSector = ((int) (long) args->arg4);
+    int unit = ((int) (long) args->arg5);
 
+    result = diskReadReal(unit, startTrack, startSector, sectors, buffer);
+
+    if (result == -1) {
+        args->arg4 = ((void *) (long) -1);
+    } else {
+        args->arg4 = ((void *) (long) 0);
+    }
+
+    args->arg1 = ((void *) (long) result);
+}
+
+int diskReadReal(int unit, int startTrack, int startSector, int sectors, 
+        void *buffer) {
+
+    diskDriverInfo info;
+
+    if (unit < 0 || unit > 1) {
+        return -1;
+    }
+    // TODO: check track and sector using diskSizeReal
+
+    addToProcessTable();
+
+    info.unit = unit;
+    info.startTrack = startTrack;
+    info.startSector = startSector;
+    info.sectors = sectors;
+    info.buffer = buffer;
+    info.mboxID = procTable[getpid() % MAXPROC].mboxID;
+
+    if (headDiskList == NULL) {
+        headDiskList = &info;
+    } else {
+        diskDriverInfoPtr tempA = headDiskList;
+        diskDriverInfoPtr tempB = headDiskList->next;
+        while (tempB != NULL && tempB->startTrack < startTrack) {
+            tempA = tempA->next;
+            tempB = tempB->next;
+        }
+        tempA->next = &info;
+        info.next = tempB;
+    }
+
+    semvReal(diskSemaphore[unit]);
+
+    MboxReceive(procTable[getpid() % MAXPROC].mboxID);
+
+    return info.status;
 }
 
 void diskWrite(systemArgs *args) {
@@ -301,10 +392,12 @@ void enableInterrupts() {
 }
 
 void addToProcessTable() {
-    procTable[getpid() % MAXPROC].pid = getpid();
-    procTable[getpid() % MAXPROC].status = ACTIVE;
-    procTable[getpid() % MAXPROC].mboxID = MboxCreate(0,0);
-    procTable[getpid() % MAXPROC].sleepPtr = NULL;
+    if (getpid() !=  procTable[getpid() % MAXPROC].pid) {
+        procTable[getpid() % MAXPROC].pid = getpid();
+        procTable[getpid() % MAXPROC].status = ACTIVE;
+        procTable[getpid() % MAXPROC].mboxID = MboxCreate(0,0);
+        procTable[getpid() % MAXPROC].sleepPtr = NULL;
+    }
 }
 
 void removeFromProcessTable() {
