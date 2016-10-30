@@ -43,6 +43,14 @@ int diskSemaphore[USLOSS_DISK_UNITS];
 procPtr4 headSleepList;
 diskDriverInfoPtr headDiskList;
 
+/* ------------------------------------------------------------------------
+   Name - start3
+   Purpose - Initializes process table, semaphore table, and system call 
+             vector, forks all drivers, and cleans up when start4 is complete.
+   Parameters - none.
+   Returns - void
+   Side Effects - lots since it initializes the phase4 requests
+   ----------------------------------------------------------------------- */
 void start3() {
     char	name[128];
     char    argBuffer[10];
@@ -161,6 +169,14 @@ void start3() {
     
 } // start3
 
+/* ------------------------------------------------------------------------
+   Name - ClockDriver
+   Purpose - Wakes up sleeping processes by grabing the head of the sleep
+             list and unblocking it. Runs in a loop
+   Parameters - char* arg, not used
+   Returns - int, returns zero
+   Side Effects - Wakes up sleeping processes
+   ----------------------------------------------------------------------- */
 static int ClockDriver(char *arg) {
     int result;
     int status;
@@ -191,6 +207,14 @@ static int ClockDriver(char *arg) {
     return 0;
 }
 
+/* ------------------------------------------------------------------------
+   Name - DiskDriver
+   Purpose - Grabs the various disk requests from the headDiskList queue and
+             processes each request in order
+   Parameters - char* arg, not used
+   Returns - int, returns zero
+   Side Effects - Wakes up blocked disk request processes
+   ----------------------------------------------------------------------- */
 static int DiskDriver(char *arg) {
     int status;
     int result;
@@ -201,19 +225,19 @@ static int DiskDriver(char *arg) {
 	if(headDiskList != NULL){
             switch (headDiskList->requestType) {
             	case USLOSS_DISK_READ:
-                	diskReadHandler();
-                	break;
+                    diskReadHandler();
+                    break;
             	case USLOSS_DISK_WRITE:
-                	diskWriteHandler();
-                	break;
+                    diskWriteHandler();
+                    break;
             	case USLOSS_DISK_SEEK:
-                	diskSeekHandler();
-                	break;
+                    diskSeekHandler();
+                    break;
             	case USLOSS_DISK_TRACKS:
-                	diskTracksHandler();
-                	break;
+                    diskTracksHandler();
+                    break;
             	default:
-                	USLOSS_Console("DiskDriver: Invalid disk request.\n");
+                    USLOSS_Console("DiskDriver: Invalid disk request.\n");
             }
 	}else{
 	    //Block and wait for a new request
@@ -223,6 +247,14 @@ static int DiskDriver(char *arg) {
     return 0;
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskReadHandler
+   Purpose - Function called by DiskDriver to process actual disk read 
+             request. reads data and writes to buffer.
+   Parameters - none.
+   Returns - void
+   Side Effects - Writes data to buffer
+   ----------------------------------------------------------------------- */
 void diskReadHandler() {
     char sectorBuffer[512];
     int bufferIndex = 0;
@@ -253,15 +285,47 @@ void diskReadHandler() {
     }
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskWriteHandler
+   Purpose - Function called by DiskDriver to process actual disk write
+             request. writes data to disk
+   Parameters - none.
+   Returns - void
+   Side Effects - Writes data to disk
+   ----------------------------------------------------------------------- */
 void diskWriteHandler(){
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskSeekHandler
+   Purpose - Function called by DiskDriver to process actual disk seek
+             request. Seeks head to correct location
+   Parameters - none.
+   Returns - void
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
 void diskSeekHandler(){
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskTackHandler
+   Purpose - Function called by DiskDriver to process actual disk track
+             request. Moves head to correct Track
+   Parameters - none.
+   Returns - void
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
 void diskTracksHandler(){
 }
 
+/* ------------------------------------------------------------------------
+   Name - TermDriver
+   Purpose - TermDriver processes all terminal requests by reading from 
+             head of queue and processesing each request.
+   Parameters - char *arg, not used
+   Returns - int, returns 0
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
 static int TermDriver(char *arg) {
     /*int status;
     int result;
@@ -274,6 +338,14 @@ static int TermDriver(char *arg) {
     return 0;
 }
 
+/* ------------------------------------------------------------------------
+   Name - sleep
+   Purpose - Processes systemArgs and calls sleep real, this function
+             blocks sleeping processes for int seconds time.
+   Parameters - systemArgs args, arg1 = seconds to sleep
+   Returns - void
+   Side Effects - calls sleepReal()
+   ----------------------------------------------------------------------- */
 void sleep(systemArgs *args) {
     int seconds = ((int) (long) args->arg1);
     if (sleepReal(seconds) < 0) {
@@ -283,6 +355,13 @@ void sleep(systemArgs *args) {
     }
 }
 
+/* ------------------------------------------------------------------------
+   Name - sleepReal
+   Purpose - This function blocks sleeping processes for int seconds time.
+   Parameters - int seconds, the seconds to sleep for
+   Returns - int, result
+   Side Effects - blocks sleeping process
+   ----------------------------------------------------------------------- */
 int sleepReal(int seconds) {
     if (seconds < 0) {
         return -1;
@@ -321,6 +400,14 @@ int sleepReal(int seconds) {
     return 0;
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskRead
+   Purpose - Processes systemArgs and calls diskReadReal to add a new 
+             diskRead request to the disk request queue.
+   Parameters - systemArgs args
+   Returns - void
+   Side Effects - calls diskReadReal
+   ----------------------------------------------------------------------- */
 void diskRead(systemArgs *args) {
     int result;
     
@@ -331,16 +418,26 @@ void diskRead(systemArgs *args) {
     int unit = ((int) (long) args->arg5);
 
     result = diskReadReal(unit, startTrack, startSector, sectors, buffer);
-
+    
+    //If invalid arguments, store -1 in arg1, else store 0 in arg4
     if (result == -1) {
         args->arg4 = ((void *) (long) -1);
     } else {
         args->arg4 = ((void *) (long) 0);
     }
-
+    //Store the result of the disk read in arg1
     args->arg1 = ((void *) (long) result);
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskReadReal
+   Purpose - Adds a new diskRead request to the disk request queue and 
+             blocks until request is completed.
+   Parameters - int unit, int startTrack, int startSector, int sectors,
+                void *buffer
+   Returns - int, the result
+   Side Effects - Adds new request to queue
+   ----------------------------------------------------------------------- */
 int diskReadReal(int unit, int startTrack, int startSector, int sectors, 
         void *buffer) {
 
@@ -376,22 +473,55 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     semvReal(diskSemaphore[unit]);
 
     MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
-
+    //Remove process from table
+    removeFromProcessTable();
     return info.status;
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskWrite
+   Purpose - Processes systemArgs and calls diskWriteReal to add a new
+             diskWrite request to the disk request queue.
+   Parameters - systemArgs args
+   Returns - void
+   Side Effects - calls diskWriteReal
+   ----------------------------------------------------------------------- */
 void diskWrite(systemArgs *args) {
 
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskSize
+   Purpose - Processes systemArgs and calls diskSizeReal to add a new
+             diskSize request to the disk request queue.
+   Parameters - systemArgs args
+   Returns - void
+   Side Effects - calls diskSizeReal
+   ----------------------------------------------------------------------- */
 void diskSize(systemArgs *args) {
 
 }
 
+/* ------------------------------------------------------------------------
+   Name - termRead
+   Purpose - Processes systemArgs and calls termReadReal to add a new
+             termRead request to the terminal request queue.
+   Parameters - systemArgs args
+   Returns - void
+   Side Effects - calls termReadReal
+   ----------------------------------------------------------------------- */
 void termRead(systemArgs *args) {
 
 }
 
+/* ------------------------------------------------------------------------
+   Name - termWrite
+   Purpose - Processes systemArgs and calls termWriteReal to add a new
+             termWrite request to the terminal request queue.
+   Parameters - systemArgs args
+   Returns - void
+   Side Effects - calls termWriteReal
+   ----------------------------------------------------------------------- */
 void termWrite(systemArgs *args) {
 
 }
@@ -410,6 +540,7 @@ void enableInterrupts() {
     USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
 }
 
+/* Adds incomming process to procTable, creates proc mBox */
 void addToProcessTable() {
     if (getpid() !=  procTable[getpid() % MAXPROC].pid) {
         procTable[getpid() % MAXPROC].pid = getpid();
@@ -419,6 +550,7 @@ void addToProcessTable() {
     }
 }
 
+/* Removes outgoing process from procTable, releases proc mBox */
 void removeFromProcessTable() {
     MboxRelease(procTable[getpid() % MAXPROC].mboxID);
     procTable[getpid() % MAXPROC].pid = -1;
