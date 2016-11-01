@@ -221,28 +221,28 @@ static int DiskDriver(char *arg) {
     int unit = atoi(arg);
 
     while(! isZapped()) {
-	//If there is a request, process it, else block and wait
-	if(headDiskList != NULL){
-            switch (headDiskList->requestType) {
-            	case USLOSS_DISK_READ:
-                    diskReadHandler();
-                    break;
-            	case USLOSS_DISK_WRITE:
-                    diskWriteHandler();
-                    break;
-            	case USLOSS_DISK_SEEK:
-                    diskSeekHandler();
-                    break;
-            	case USLOSS_DISK_TRACKS:
-                    diskTracksHandler();
-                    break;
-            	default:
-                    USLOSS_Console("DiskDriver: Invalid disk request.\n");
-            }
-	}else{
-	    //Block and wait for a new request
-	    sempReal(diskSemaphore[unit]);
-	}
+        //If there is a request, process it, else block and wait
+        if(headDiskList != NULL){
+                switch (headDiskList->requestType) {
+                    case USLOSS_DISK_READ:
+                        diskReadHandler();
+                        break;
+                    case USLOSS_DISK_WRITE:
+                        diskWriteHandler();
+                        break;
+                    case USLOSS_DISK_SEEK:
+                        diskSeekHandler();
+                        break;
+                    case USLOSS_DISK_TRACKS:
+                        diskTracksHandler();
+                        break;
+                    default:
+                        USLOSS_Console("DiskDriver: Invalid disk request.\n");
+                }
+        }else{
+            //Block and wait for a new request
+            sempReal(diskSemaphore[unit]);
+        }
     }	
     return 0;
 }
@@ -370,25 +370,24 @@ int sleepReal(int seconds) {
     // add process to phase 4 process table
     addToProcessTable();
 
+    // process to add to the sleep list and block
+    procPtr4 toAdd = &procTable[getpid() % MAXPROC];
+
     int awakeTime = USLOSS_Clock() + (1000000 * seconds);
-    procTable[getpid() % MAXPROC].awakeTime = awakeTime;
+    toAdd->awakeTime = awakeTime;
+
+    // add process to the sleep list
     if (headSleepList == NULL) {
-        headSleepList = &procTable[getpid() % MAXPROC];
+        headSleepList = toAdd;
     } else {
         procPtr4 temp = headSleepList;
-        while (1) {
-            if (temp->sleepPtr == NULL ) {
-                temp->sleepPtr = &procTable[getpid() % MAXPROC];
-                break;
-            } else if (temp->sleepPtr->awakeTime < awakeTime) {
-                temp = temp->sleepPtr;
-            } else {
-                procPtr4 temp2 = temp->sleepPtr;
-                temp->sleepPtr = &procTable[getpid() % MAXPROC];
-                temp->sleepPtr->sleepPtr = temp2;
-                break;
-            }
+        procPtr4 temp2 = headSleepList->sleepPtr;
+        while (temp2 != NULL && toAdd->awakeTime < temp2->awakeTime) {
+            temp = temp->sleepPtr;
+            temp2 = temp2->sleepPtr;
         }
+        temp->sleepPtr = toAdd;
+        toAdd->sleepPtr = temp2;
     }
 
     // block on private mailbox
