@@ -21,7 +21,11 @@ void diskRead(systemArgs *args);
 int diskReadReal(int unit, int startTrack, int startSector, int sectors, 
         void *buffer);
 void diskWrite(systemArgs *args);
+int diskWriteReal(int unit, int startTrack, int startSector, int sectors, 
+        void *buffer);
 void diskSize(systemArgs *args);
+int diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
+        int *tracksInDisk);
 void termRead(systemArgs *args);
 void termWrite(systemArgs *args);
 void checkKernelMode(char * processName);
@@ -157,9 +161,10 @@ void start3() {
      */
     zap(clockPID);  // clock driver
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {  // disk drivers
-        //Unblock the diskdrivers
-        semvReal(diskSemaphore[i]);
+
+        //Unblock the disk drivers
         zap(diskPID[i]);
+        semvReal(diskSemaphore[i]);
     }
     /*for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
         zap(termPID[i]);
@@ -222,7 +227,7 @@ static int DiskDriver(char *arg) {
 
     while(! isZapped()) {
         //If there is a request, process it, else block and wait
-        if(headDiskList != NULL){
+        if (headDiskList != NULL){
                 switch (headDiskList->requestType) {
                     case USLOSS_DISK_READ:
                         diskReadHandler();
@@ -238,8 +243,10 @@ static int DiskDriver(char *arg) {
                         break;
                     default:
                         USLOSS_Console("DiskDriver: Invalid disk request.\n");
+                        USLOSS_Console("DiskDriver: %d.\n", 
+                                headDiskList->requestType);
                 }
-        }else{
+        } else {
             //Block and wait for a new request
             sempReal(diskSemaphore[unit]);
         }
@@ -283,6 +290,8 @@ void diskReadHandler() {
                 512);
         bufferIndex += 512;
     }
+    MboxSend(headDiskList->mboxID, NULL, 0);
+    headDiskList = headDiskList->next;
 }
 
 /* ------------------------------------------------------------------------
@@ -294,6 +303,29 @@ void diskReadHandler() {
    Side Effects - Writes data to disk
    ----------------------------------------------------------------------- */
 void diskWriteHandler(){
+    int status;
+    int result;
+
+    USLOSS_DeviceRequest devRequest;
+    devRequest.opr = USLOSS_DISK_WRITE;
+    devRequest.reg2 = headDiskList->buffer;
+
+    for (int i = 0; i < headDiskList->sectors; i++) {
+        devRequest.reg1 = ((void *) (long) (headDiskList->startSector + i));
+
+        USLOSS_DeviceOutput(USLOSS_DISK_DEV, headDiskList->unit, &devRequest);
+        result = waitDevice(USLOSS_DISK_DEV, headDiskList->unit, &status);
+        if (status == USLOSS_DEV_ERROR) {
+            headDiskList->status = status;
+            headDiskList = headDiskList->next;
+            return;
+        }
+        if (result != 0) {
+            return;
+        }
+    }
+    MboxSend(headDiskList->mboxID, NULL, 0);
+    headDiskList = headDiskList->next;
 }
 
 /* ------------------------------------------------------------------------
@@ -380,14 +412,19 @@ int sleepReal(int seconds) {
     if (headSleepList == NULL) {
         headSleepList = toAdd;
     } else {
-        procPtr4 temp = headSleepList;
-        procPtr4 temp2 = headSleepList->sleepPtr;
-        while (temp2 != NULL && toAdd->awakeTime < temp2->awakeTime) {
-            temp = temp->sleepPtr;
-            temp2 = temp2->sleepPtr;
+            procPtr4 temp = headSleepList;
+        if (toAdd->awakeTime >= headSleepList->awakeTime) {
+            procPtr4 temp2 = headSleepList->sleepPtr;
+            while (temp2 != NULL && toAdd->awakeTime > temp2->awakeTime) {
+                temp = temp->sleepPtr;
+                temp2 = temp2->sleepPtr;
+            }
+            temp->sleepPtr = toAdd;
+            toAdd->sleepPtr = temp2;
+        } else {
+            toAdd->sleepPtr = temp;
+            headSleepList = toAdd;
         }
-        temp->sleepPtr = toAdd;
-        toAdd->sleepPtr = temp2;
     }
 
     // block on private mailbox
@@ -455,6 +492,8 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     info.sectors = sectors;
     info.buffer = buffer;
     info.mboxID = procTable[getpid() % MAXPROC].mboxID;
+    info.requestType = USLOSS_DISK_READ;
+    info.next = NULL;
 
     if (headDiskList == NULL) {
         headDiskList = &info;
@@ -486,7 +525,76 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
    Side Effects - calls diskWriteReal
    ----------------------------------------------------------------------- */
 void diskWrite(systemArgs *args) {
+    int result;
+    
+    void *buffer = args->arg1;
+    int sectors = ((int) (long) args->arg2);
+    int startTrack = ((int) (long) args->arg3);
+    int startSector = ((int) (long) args->arg4);
+    int unit = ((int) (long) args->arg5);
 
+    result = diskWriteReal(unit, startTrack, startSector, sectors, buffer);
+    
+    //If invalid arguments, store -1 in arg1, else store 0 in arg4
+    if (result == -1) {
+        args->arg4 = ((void *) (long) -1);
+    } else {
+        args->arg4 = ((void *) (long) 0);
+    }
+    //Store the result of the disk read in arg1
+    args->arg1 = ((void *) (long) result);
+}
+
+/* ------------------------------------------------------------------------
+   Name - diskWriteReal
+   Purpose - Adds a new diskRead request to the disk request queue and 
+             blocks until request is completed.
+   Parameters - int unit, int startTrack, int startSector, int sectors,
+                void *buffer
+   Returns - int, the result
+   Side Effects - Adds new request to queue
+   ----------------------------------------------------------------------- */
+int diskWriteReal(int unit, int startTrack, int startSector, int sectors, 
+        void *buffer) {
+
+    diskDriverInfo info;
+
+    if (unit < 0 || unit > 1) {
+        return -1;
+    }
+    // TODO: check track and sector using diskSizeReal
+
+    addToProcessTable();
+
+    info.unit = unit;
+    info.startTrack = startTrack;
+    info.startSector = startSector;
+    info.sectors = sectors;
+    info.buffer = buffer;
+    info.mboxID = procTable[getpid() % MAXPROC].mboxID;
+    info.requestType = USLOSS_DISK_WRITE;
+    info.next = NULL;
+
+    if (headDiskList == NULL) {
+        headDiskList = &info;
+    } else {
+        diskDriverInfoPtr tempA = headDiskList;
+        diskDriverInfoPtr tempB = headDiskList->next;
+        while (tempB != NULL && tempB->startTrack < startTrack) {
+            tempA = tempA->next;
+            tempB = tempB->next;
+        }
+        tempA->next = &info;
+        info.next = tempB;
+    }
+
+    semvReal(diskSemaphore[unit]);
+
+    MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
+    
+    // Remove process from table
+    removeFromProcessTable();
+    return info.status;
 }
 
 /* ------------------------------------------------------------------------
@@ -498,7 +606,58 @@ void diskWrite(systemArgs *args) {
    Side Effects - calls diskSizeReal
    ----------------------------------------------------------------------- */
 void diskSize(systemArgs *args) {
+    int result;
 
+    int sectorSize;
+    int sectorsInTrack;
+    int tracksInDisk;
+    
+    int unit = ((int) (long) args->arg1);
+
+    result = diskSizeReal(unit, &sectorSize, &sectorsInTrack, &tracksInDisk);
+    
+    //If invalid arguments, store -1 in arg1, else store 0 in arg4
+    if (result == -1) {
+        args->arg4 = ((void *) (long) -1);
+    } else {
+        args->arg4 = ((void *) (long) 0);
+    }
+    //Store the result of the disk read in arg1
+    args->arg1 = ((void *) (long) sectorSize);
+    args->arg2 = ((void *) (long) sectorsInTrack);
+    args->arg3 = ((void *) (long) tracksInDisk);
+}
+
+int diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
+        int *tracksInDisk) {
+    int status;
+    int result;
+    
+    if (unit < 0 || unit > 1) {
+        return -1;
+    }
+    
+    addToProcessTable();
+
+    USLOSS_DeviceRequest devRequest;
+    devRequest.opr = USLOSS_DISK_TRACKS;
+    devRequest.reg1 = (void *) tracksInDisk;
+
+    USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &devRequest);
+    result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+
+    if (status == USLOSS_DEV_ERROR) {
+        return -1;
+    }
+    if (result != 0) {
+        return -1;
+    }
+
+    *sectorSize = USLOSS_DISK_SECTOR_SIZE;
+    *sectorsInTrack = USLOSS_DISK_TRACK_SIZE;
+
+    removeFromProcessTable();
+    return 0;
 }
 
 /* ------------------------------------------------------------------------
