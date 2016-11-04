@@ -32,10 +32,9 @@ void checkKernelMode(char * processName);
 void enableInterrupts();
 void addToProcessTable();
 void removeFromProcessTable();
-void diskReadHandler();
-void diskWriteHandler();
-void diskSeekHandler();
-void diskTracksHandler();
+int diskReadHandler();
+int diskWriteHandler();
+int deviceOutput(USLOSS_DeviceRequest *devRequest);
 /* -------------------------- Globals ------------------------------------- */
 
 // Process Table
@@ -44,8 +43,11 @@ procStruct4 procTable[MAXPROC];
 int clockSemaphore;
 int diskSemaphore[USLOSS_DISK_UNITS];
 
+int tracksOnDisk[USLOSS_DISK_UNITS];
+
 procPtr4 headSleepList;
 diskDriverInfoPtr headDiskList;
+
 
 /* ------------------------------------------------------------------------
    Name - start3
@@ -121,6 +123,9 @@ void start3() {
 
         diskPID[i] = pid; // store pid of disk driver processes for zapping
 
+        int sector, track;
+        diskSizeReal(i, &sector, &track, &tracksOnDisk[i]);
+
         strcpy(procTable[pid % MAXPROC].name, name);
         procTable[pid % MAXPROC].pid = pid;
         procTable[pid % MAXPROC].status = ACTIVE;
@@ -163,8 +168,8 @@ void start3() {
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {  // disk drivers
 
         //Unblock the disk drivers
-        zap(diskPID[i]);
         semvReal(diskSemaphore[i]);
+        zap(diskPID[i]);
     }
     /*for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
         zap(termPID[i]);
@@ -221,7 +226,6 @@ static int ClockDriver(char *arg) {
    Side Effects - Wakes up blocked disk request processes
    ----------------------------------------------------------------------- */
 static int DiskDriver(char *arg) {
-    int status;
     int result;
     int unit = atoi(arg);
 
@@ -230,16 +234,10 @@ static int DiskDriver(char *arg) {
         if (headDiskList != NULL){
                 switch (headDiskList->requestType) {
                     case USLOSS_DISK_READ:
-                        diskReadHandler();
+                        result = diskReadHandler(); 
                         break;
                     case USLOSS_DISK_WRITE:
-                        diskWriteHandler();
-                        break;
-                    case USLOSS_DISK_SEEK:
-                        diskSeekHandler();
-                        break;
-                    case USLOSS_DISK_TRACKS:
-                        diskTracksHandler();
+                        result = diskWriteHandler();
                         break;
                     default:
                         USLOSS_Console("DiskDriver: Invalid disk request.\n");
@@ -249,6 +247,10 @@ static int DiskDriver(char *arg) {
         } else {
             //Block and wait for a new request
             sempReal(diskSemaphore[unit]);
+        }
+
+        if (result < 0) {
+            USLOSS_Console("DiskDriver: Read/Write Fail!\n");
         }
     }	
     return 0;
@@ -262,36 +264,61 @@ static int DiskDriver(char *arg) {
    Returns - void
    Side Effects - Writes data to buffer
    ----------------------------------------------------------------------- */
-void diskReadHandler() {
+int diskReadHandler() {
     char sectorBuffer[512];
     int bufferIndex = 0;
-    int status;
-    int result;
+    int unit = headDiskList->unit;
+    int currentTrack = headDiskList->startTrack;
+    int currentSector = headDiskList->startSector;
 
     USLOSS_DeviceRequest devRequest;
-    devRequest.opr = USLOSS_DISK_READ;
-    devRequest.reg2 = sectorBuffer;
+    devRequest.opr = USLOSS_DISK_SEEK;
+    devRequest.reg1 = ((void *) (long) currentTrack);
+    
+    // perform initial seek operation
+    if (deviceOutput(&devRequest) < 0) {
+        return -1;
+    }
 
+    // perform all read operations. may need to change track.
     for (int i = 0; i < headDiskList->sectors; i++) {
-        devRequest.reg1 = ((void *) (long) (headDiskList->startSector + i));
+        if (currentSector == USLOSS_DISK_TRACK_SIZE) {
+            currentSector = 0;
+            currentTrack++;
 
-        USLOSS_DeviceOutput(USLOSS_DISK_DEV, headDiskList->unit, &devRequest);
-        result = waitDevice(USLOSS_DISK_DEV, headDiskList->unit, &status);
-        if (status == USLOSS_DEV_ERROR) {
-            headDiskList->status = status;
-            headDiskList = headDiskList->next;
-            return;
-        }
-        if (result != 0) {
-            return;
+            // change track to next track 
+            if (currentTrack == tracksOnDisk[unit]) {  // disk cannot wrap
+                return -1;
+            }
+            devRequest.opr = USLOSS_DISK_SEEK;
+            devRequest.reg1 = ((void *) (long) currentTrack);
+            
+            if (deviceOutput(&devRequest) < 0) { // seek to next track
+                return -1;
+            }
         }
 
+        // build a device request struct for read
+        devRequest.opr = USLOSS_DISK_READ;
+        devRequest.reg1 = ((void *) (long) currentSector);
+        devRequest.reg2 = sectorBuffer;
+
+        // perform a read
+        if (deviceOutput(&devRequest) < 0) {
+            return -1;
+        }
+
+        // copy what was read to users buffer
         memcpy(((char *) headDiskList->buffer) + bufferIndex, sectorBuffer, 
                 512);
         bufferIndex += 512;
+
+        currentSector++;
     }
-    MboxSend(headDiskList->mboxID, NULL, 0);
-    headDiskList = headDiskList->next;
+
+    MboxSend(headDiskList->mboxID, NULL, 0); // wake up calling process
+    headDiskList = headDiskList->next;  // remove request from queue
+    return 0;
 }
 
 /* ------------------------------------------------------------------------
@@ -302,52 +329,82 @@ void diskReadHandler() {
    Returns - void
    Side Effects - Writes data to disk
    ----------------------------------------------------------------------- */
-void diskWriteHandler(){
+int diskWriteHandler(){
+    int unit = headDiskList->unit;
+    int currentTrack = headDiskList->startTrack;
+    int currentSector = headDiskList->startSector;
+
+    USLOSS_DeviceRequest devRequest;
+    devRequest.opr = USLOSS_DISK_SEEK;
+    devRequest.reg1 = ((void *) (long) currentTrack);
+    
+    // seek to initial track to write
+    if (deviceOutput(&devRequest) < 0) {
+        return -1;
+    }
+
+    for (int i = 0; i < headDiskList->sectors; i++) {
+
+        // Used all sectors on track
+        if (currentSector == USLOSS_DISK_TRACK_SIZE) {
+            currentSector = 0;
+            currentTrack++;
+
+            // used all tracks on disk
+            if (currentTrack == tracksOnDisk[unit]) {  // disk cannot wrap
+                return -1;
+            }
+            devRequest.opr = USLOSS_DISK_SEEK;
+            devRequest.reg1 = ((void *) (long) currentTrack);
+
+            // seek to next track to write
+            if (deviceOutput(&devRequest) < 0) {
+                USLOSS_Console("seek fail\n");
+                return -1;
+            }
+        }
+        devRequest.opr = USLOSS_DISK_WRITE;
+        devRequest.reg1 = ((void *) (long) currentSector);
+        devRequest.reg2 = headDiskList->buffer + (512 * i);
+        
+        // write sector to disk
+        if (deviceOutput(&devRequest) < 0) {
+            USLOSS_Console("write fail\n");
+            return -1;
+        }
+        
+        currentSector++;
+    }
+
+    MboxSend(headDiskList->mboxID, NULL, 0);  // wake up calling process
+    headDiskList = headDiskList->next;  // remove request from queue
+    return 0;
+}
+
+/* ------------------------------------------------------------------------
+   Name - 
+   Purpose - 
+             
+   Parameters - none.
+   Returns - void
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
+int deviceOutput(USLOSS_DeviceRequest *devRequest){
     int status;
     int result;
 
-    USLOSS_DeviceRequest devRequest;
-    devRequest.opr = USLOSS_DISK_WRITE;
-    devRequest.reg2 = headDiskList->buffer;
-
-    for (int i = 0; i < headDiskList->sectors; i++) {
-        devRequest.reg1 = ((void *) (long) (headDiskList->startSector + i));
-
-        USLOSS_DeviceOutput(USLOSS_DISK_DEV, headDiskList->unit, &devRequest);
-        result = waitDevice(USLOSS_DISK_DEV, headDiskList->unit, &status);
-        if (status == USLOSS_DEV_ERROR) {
-            headDiskList->status = status;
-            headDiskList = headDiskList->next;
-            return;
-        }
-        if (result != 0) {
-            return;
-        }
+    USLOSS_DeviceOutput(USLOSS_DISK_DEV, headDiskList->unit, devRequest);
+    result = waitDevice(USLOSS_DISK_DEV, headDiskList->unit, &status);
+    if (status == USLOSS_DEV_ERROR) {
+        headDiskList->status = status;
+        headDiskList = headDiskList->next;
+        return -1;
     }
-    MboxSend(headDiskList->mboxID, NULL, 0);
-    headDiskList = headDiskList->next;
-}
-
-/* ------------------------------------------------------------------------
-   Name - diskSeekHandler
-   Purpose - Function called by DiskDriver to process actual disk seek
-             request. Seeks head to correct location
-   Parameters - none.
-   Returns - void
-   Side Effects - none.
-   ----------------------------------------------------------------------- */
-void diskSeekHandler(){
-}
-
-/* ------------------------------------------------------------------------
-   Name - diskTackHandler
-   Purpose - Function called by DiskDriver to process actual disk track
-             request. Moves head to correct Track
-   Parameters - none.
-   Returns - void
-   Side Effects - none.
-   ----------------------------------------------------------------------- */
-void diskTracksHandler(){
+    if (result != 0) {
+        return -2;
+    }
+    headDiskList->status = status;
+    return 0;
 }
 
 /* ------------------------------------------------------------------------
@@ -508,7 +565,7 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
         info.next = tempB;
     }
 
-    semvReal(diskSemaphore[unit]);
+    semvReal(diskSemaphore[unit]); // wake up driver
 
     MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
     //Remove process from table
