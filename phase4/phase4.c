@@ -35,6 +35,7 @@ void removeFromProcessTable();
 int diskReadHandler();
 int diskWriteHandler();
 int deviceOutput(USLOSS_DeviceRequest *devRequest);
+void insertDiskRequest(diskDriverInfoPtr info);
 /* -------------------------- Globals ------------------------------------- */
 
 // Process Table
@@ -305,6 +306,7 @@ int diskReadHandler() {
 
         // perform a read
         if (deviceOutput(&devRequest) < 0) {
+            headDiskList = headDiskList->next;  // remove request from queue
             return -1;
         }
 
@@ -330,6 +332,7 @@ int diskReadHandler() {
    Side Effects - Writes data to disk
    ----------------------------------------------------------------------- */
 int diskWriteHandler(){
+    int status;
     int unit = headDiskList->unit;
     int currentTrack = headDiskList->startTrack;
     int currentSector = headDiskList->startSector;
@@ -369,6 +372,8 @@ int diskWriteHandler(){
         
         // write sector to disk
         if (deviceOutput(&devRequest) < 0) {
+            headDiskList = headDiskList->next;  // remove request from queue
+            headDiskList->status = status;
             USLOSS_Console("write fail\n");
             return -1;
         }
@@ -397,7 +402,6 @@ int deviceOutput(USLOSS_DeviceRequest *devRequest){
     result = waitDevice(USLOSS_DISK_DEV, headDiskList->unit, &status);
     if (status == USLOSS_DEV_ERROR) {
         headDiskList->status = status;
-        headDiskList = headDiskList->next;
         return -1;
     }
     if (result != 0) {
@@ -539,7 +543,12 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     if (unit < 0 || unit > 1) {
         return -1;
     }
-    // TODO: check track and sector using diskSizeReal
+    if (startTrack < 0 || startTrack > tracksOnDisk[unit] - 1) {
+        return -1;
+    }
+    if (startSector < 0 || startSector > USLOSS_DISK_TRACK_SIZE - 1) {
+        return -1;
+    }
 
     addToProcessTable();
 
@@ -552,18 +561,7 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     info.requestType = USLOSS_DISK_READ;
     info.next = NULL;
 
-    if (headDiskList == NULL) {
-        headDiskList = &info;
-    } else {
-        diskDriverInfoPtr tempA = headDiskList;
-        diskDriverInfoPtr tempB = headDiskList->next;
-        while (tempB != NULL && tempB->startTrack < startTrack) {
-            tempA = tempA->next;
-            tempB = tempB->next;
-        }
-        tempA->next = &info;
-        info.next = tempB;
-    }
+    insertDiskRequest(&info);
 
     semvReal(diskSemaphore[unit]); // wake up driver
 
@@ -573,6 +571,33 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     return info.status;
 }
 
+void insertDiskRequest(diskDriverInfoPtr info) {
+    if (headDiskList == NULL) {
+        headDiskList = info;
+    } else {
+        diskDriverInfoPtr tempA = headDiskList;
+        diskDriverInfoPtr tempB = headDiskList->next;
+        if (info->startTrack > headDiskList->startTrack) {
+            while (tempB != NULL && tempB->startTrack < info->startTrack && tempB->startTrack > tempA->startTrack) {
+                tempA = tempA->next;
+                tempB = tempB->next;
+            }
+            tempA->next = info;
+            info->next = tempB;
+        } else {
+            while (tempB != NULL && tempA->startTrack < tempB->startTrack) {
+                tempA = tempA->next;
+                tempB = tempB->next;
+            }
+            while (tempB != NULL && tempB->startTrack < info->startTrack) {
+                tempA = tempA->next;
+                tempB = tempB->next;
+            }
+            tempA->next = info;
+            info->next = tempB;
+        }
+    }
+}
 /* ------------------------------------------------------------------------
    Name - diskWrite
    Purpose - Processes systemArgs and calls diskWriteReal to add a new
@@ -619,7 +644,12 @@ int diskWriteReal(int unit, int startTrack, int startSector, int sectors,
     if (unit < 0 || unit > 1) {
         return -1;
     }
-    // TODO: check track and sector using diskSizeReal
+    if (startTrack < 0 || startTrack > tracksOnDisk[unit] - 1) {
+        return -1;
+    }
+    if (startSector < 0 || startSector > USLOSS_DISK_TRACK_SIZE - 1) {
+        return -1;
+    }
 
     addToProcessTable();
 
@@ -632,18 +662,14 @@ int diskWriteReal(int unit, int startTrack, int startSector, int sectors,
     info.requestType = USLOSS_DISK_WRITE;
     info.next = NULL;
 
-    if (headDiskList == NULL) {
-        headDiskList = &info;
-    } else {
-        diskDriverInfoPtr tempA = headDiskList;
-        diskDriverInfoPtr tempB = headDiskList->next;
-        while (tempB != NULL && tempB->startTrack < startTrack) {
-            tempA = tempA->next;
-            tempB = tempB->next;
-        }
-        tempA->next = &info;
-        info.next = tempB;
+    insertDiskRequest(&info);
+
+    diskDriverInfoPtr temp = headDiskList;
+    while (temp != NULL) {
+        USLOSS_Console("%d, ", temp->startTrack);
+        temp = temp->next;
     }
+    USLOSS_Console("\n");
 
     semvReal(diskSemaphore[unit]);
 
