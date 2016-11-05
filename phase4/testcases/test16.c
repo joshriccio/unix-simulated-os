@@ -33,7 +33,7 @@ int k3(char *arg)
 
 int k4(char *arg)
 {
-    ubiq(0); 
+    ubiq(0);
     Terminate(5);
     return 0;
 } /* k4 */
