@@ -380,9 +380,9 @@ int diskWriteHandler(){
         
         currentSector++;
     }
-
-    MboxSend(headDiskList->mboxID, NULL, 0);  // wake up calling process
+    int mboxid = headDiskList->mboxID;
     headDiskList = headDiskList->next;  // remove request from queue
+    MboxSend(mboxid, NULL, 0);  // wake up calling process
     return 0;
 }
 
@@ -664,13 +664,13 @@ int diskWriteReal(int unit, int startTrack, int startSector, int sectors,
 
     insertDiskRequest(&info);
 
-    diskDriverInfoPtr temp = headDiskList;
+    /*diskDriverInfoPtr temp = headDiskList;
     while (temp != NULL) {
         USLOSS_Console("%d, ", temp->startTrack);
         temp = temp->next;
     }
     USLOSS_Console("\n");
-
+    */
     semvReal(diskSemaphore[unit]);
 
     MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);

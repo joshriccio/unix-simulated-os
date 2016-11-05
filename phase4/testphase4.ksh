@@ -1,12 +1,12 @@
 #!/bin/ksh
-#dir=/home/cs452/fall15/phase4/testResults
-dir=testResults
+dir=/home/cs452/fall16/phase4/testResults
+#dir=/home/cs452/fall16/admin/project/phase4/testResults
 #dir=/Users/patrick/Classes/452/project/phase4/testResults
 
 if [ "$#" -eq 0 ] 
 then
     echo "Usage: ksh testphase4.ksh <num>"
-    echo "where <num> is 00, 01, 02, ... or 26"
+    echo "where <num> is 00, 01, 02, ... or 23"
     exit 1
 fi
 
@@ -35,7 +35,10 @@ then
 
     /bin/rm test${num}stderr.txt
 
-    if [ "${num}" -eq 05 -o "${num}" -eq 06 ]; then
+    if [ "${num}" -eq 06 -o "${num}" -eq 07 -o \
+         "${num}" -eq 19 -o "${num}" -eq 20 -o \
+         "${num}" -eq 21 -o "${num}" -eq 22 -o \
+         "${num}" -eq 23 ]; then
         echo >> test${num}.txt
         echo "term0.out" >> test${num}.txt
         cat   term0.out >> test${num}.txt
@@ -47,7 +50,7 @@ then
         cat   term3.out >> test${num}.txt
     fi
 
-    if [ "${num}" -eq 13 ]; then
+    if [ "${num}" -eq 14 ]; then
         cmp disk1 testResults/disk13
         diskCompare=$?
         echo "diskCompare = "${diskCompare}
