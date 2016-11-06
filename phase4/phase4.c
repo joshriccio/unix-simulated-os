@@ -27,6 +27,7 @@ void diskSize(systemArgs *args);
 int diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
         int *tracksInDisk);
 void termRead(systemArgs *args);
+int termReadReal(int unit, int bufferSize, char *buffer);
 void termWrite(systemArgs *args);
 void checkKernelMode(char * processName);
 void enableInterrupts();
@@ -36,6 +37,7 @@ int diskReadHandler(int unit);
 int diskWriteHandler(int unit);
 int deviceOutput(USLOSS_DeviceRequest *devRequest, int unit);
 void insertDiskRequest(diskDriverInfoPtr info);
+int TermReader(char *arg);
 /* -------------------------- Globals ------------------------------------- */
 
 // Process Table
@@ -43,6 +45,14 @@ procStruct4 procTable[MAXPROC];
 
 int clockSemaphore;
 int diskSemaphore[USLOSS_DISK_UNITS];
+
+int charIn[USLOSS_TERM_UNITS];
+int charOut[USLOSS_TERM_UNITS];
+
+int readLines[USLOSS_TERM_UNITS];
+int writeLine[USLOSS_TERM_UNITS];
+
+int userWriteSem[USLOSS_TERM_UNITS];
 
 int tracksOnDisk[USLOSS_DISK_UNITS];
 
@@ -64,7 +74,8 @@ void start3() {
     int		i;
     int		clockPID;
     int		diskPID[USLOSS_DISK_UNITS];
-    int		termPID[USLOSS_TERM_UNITS];
+    int		termDriverPID[USLOSS_TERM_UNITS];
+    int		termReaderPID[USLOSS_TERM_UNITS];
     int		pid;
     int		status;
 
@@ -137,7 +148,7 @@ void start3() {
     // May be other stuff to do here before going on to terminal drivers
 
     // Create terminal device drivers.
-    /*for (i = 0; i < USLOSS_TERM_UNITS; i++) {
+    for (i = 0; i < USLOSS_TERM_UNITS; i++) {
         sprintf(argBuffer, "%d", i);
         sprintf(name, "termDriver%d", i);
         pid = fork1(name, TermDriver, argBuffer, USLOSS_MIN_STACK, 2);
@@ -146,12 +157,33 @@ void start3() {
             USLOSS_Halt(1);
         }
 
-        termPID[i] = pid; // store pid of term driver processes for zapping
+        termDriverPID[i] = pid; // store pid of term driver processes for zapping
 
         strcpy(procTable[pid % MAXPROC].name, name);
         procTable[pid % MAXPROC].pid = pid;
         procTable[pid % MAXPROC].status = ACTIVE;
-    }*/
+
+        // TermReader Processes
+        sprintf(argBuffer, "%d", i);
+        sprintf(name, "termReader%d", i);
+        pid = fork1(name, TermReader, argBuffer, USLOSS_MIN_STACK, 2);
+        if (pid < 0) {
+            USLOSS_Console("start3(): Can't create term reader %d\n", i);
+            USLOSS_Halt(1);
+        }
+
+        termReaderPID[i] = pid; // store pid of term driver processes for zapping
+
+        strcpy(procTable[pid % MAXPROC].name, name);
+        procTable[pid % MAXPROC].pid = pid;
+        procTable[pid % MAXPROC].status = ACTIVE;
+
+        charIn[i] = MboxCreate(1, sizeof(char));
+        charOut[i] = MboxCreate(1, sizeof(char));
+        readLines[i] = MboxCreate(10, MAXLINE + 1);
+        writeLine[i] = MboxCreate(0, MAXLINE + 1);
+        userWriteSem[i] = semcreateReal(0);
+    }
     
 
     /*
@@ -174,9 +206,10 @@ void start3() {
         semvReal(diskSemaphore[i]);
         zap(diskPID[i]);
     }
-    /*for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
-        zap(termPID[i]);
-    }*/
+    for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
+        zap(termDriverPID[i]);
+        zap(termReaderPID[i]);
+    }
 
     quit(0);
     
@@ -420,16 +453,65 @@ int deviceOutput(USLOSS_DeviceRequest *devRequest, int unit){
    Side Effects - none.
    ----------------------------------------------------------------------- */
 static int TermDriver(char *arg) {
-    /*int status;
+    int status;
     int result;
+    int unit = atoi(arg);
+    int control = 2;
+
+    // turn on recv interrupts in control register
+    USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, &control);
+
     while(! isZapped()) {
-        result = waitDevice(USLOSS_TERM_DEV, atoi(arg), &status);
+/*        USLOSS_Console("TermDriver: Started");
+        USLOSS_Console("%d", unit);
+        USLOSS_DeviceInput(USLOSS_TERM_INT, unit, &status);
+        USLOSS_Console(" %d\n", status);
+*/        
+        result = waitDevice(USLOSS_TERM_DEV, unit, &status);
+        if(isZapped()) {
+            return 0;
+        }
         if (result != 0) {
             return 0;
         }
-    }*/
+
+        // give character to TermReader
+        if (USLOSS_TERM_STAT_RECV(status) == USLOSS_DEV_BUSY) {
+            char chr = USLOSS_TERM_STAT_CHAR(status);
+            MboxSend(charIn[unit], &chr, sizeof(char));
+        }
+
+        //char chr = USLOSS_TERM_STAT_CHAR(status);
+        //USLOSS_Console("TermDriver: %c", chr);
+    }
     return 0;
 }
+
+int TermReader(char *arg) {
+    int unit = atoi(arg);
+    char line[MAXLINE + 1];
+    int index = 0;
+    char buffer;
+
+    while (1) {
+        MboxReceive(charIn[unit], &buffer, sizeof(char));
+        if (isZapped()) {
+            return 0;
+        }
+        
+        line[index] = buffer;
+        index++;
+
+        if (buffer == '\n' || index >= MAXLINE) {
+            line[index] = '\n';
+            MboxSend(readLines[unit], (void *) line, MAXLINE + 1);
+            index = 0;
+            //USLOSS_Console("%s", line);
+            // wake up user
+        }
+    }
+}
+
 
 /* ------------------------------------------------------------------------
    Name - sleep
@@ -781,8 +863,13 @@ int termReadReal(int unit, int bufferSize, char *buffer) {
         return -1;
     }
 
+    char buf[MAXLINE + 1];
+    MboxReceive(readLines[unit], buf, MAXLINE + 1);
+    buf[bufferSize] = '\n';
+    memcpy(buffer, buf, bufferSize + 1);
+    //USLOSS_Console("termReadReal: %s", buf);
 
-
+    return 0;
 }
 
 /* ------------------------------------------------------------------------
