@@ -208,6 +208,7 @@ void start3() {
     }
     for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
         zap(termDriverPID[i]);
+        MboxCondSend(charIn[i], NULL, 0);
         zap(termReaderPID[i]);
     }
 
@@ -462,11 +463,6 @@ static int TermDriver(char *arg) {
     USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, &control);
 
     while(! isZapped()) {
-/*        USLOSS_Console("TermDriver: Started");
-        USLOSS_Console("%d", unit);
-        USLOSS_DeviceInput(USLOSS_TERM_INT, unit, &status);
-        USLOSS_Console(" %d\n", status);
-*/        
         result = waitDevice(USLOSS_TERM_DEV, unit, &status);
         if(isZapped()) {
             return 0;
@@ -480,9 +476,6 @@ static int TermDriver(char *arg) {
             char chr = USLOSS_TERM_STAT_CHAR(status);
             MboxSend(charIn[unit], &chr, sizeof(char));
         }
-
-        //char chr = USLOSS_TERM_STAT_CHAR(status);
-        //USLOSS_Console("TermDriver: %c", chr);
     }
     return 0;
 }
@@ -494,20 +487,21 @@ int TermReader(char *arg) {
     char buffer;
 
     while (1) {
+        // get char from driver
         MboxReceive(charIn[unit], &buffer, sizeof(char));
         if (isZapped()) {
             return 0;
         }
         
+        // apend char to line
         line[index] = buffer;
         index++;
 
+        // send line to mailbox when line is complete
         if (buffer == '\n' || index >= MAXLINE) {
-            line[index] = '\n';
-            MboxSend(readLines[unit], (void *) line, MAXLINE + 1);
+            line[index] = 0;
+            MboxCondSend(readLines[unit], (void *) line, MAXLINE + 1);
             index = 0;
-            //USLOSS_Console("%s", line);
-            // wake up user
         }
     }
 }
@@ -865,11 +859,17 @@ int termReadReal(int unit, int bufferSize, char *buffer) {
 
     char buf[MAXLINE + 1];
     MboxReceive(readLines[unit], buf, MAXLINE + 1);
-    buf[bufferSize] = '\n';
-    memcpy(buffer, buf, bufferSize + 1);
-    //USLOSS_Console("termReadReal: %s", buf);
+    int bufLen = strlen(buf);
+    buf[bufLen] = '\n';
 
-    return 0;
+    if (bufferSize < bufLen) {
+        memcpy(buffer, buf, bufferSize + 1);
+        return bufferSize;
+    } else {
+        memcpy(buffer, buf, bufLen);
+        return bufLen;
+    }
+    return -1;
 }
 
 /* ------------------------------------------------------------------------
