@@ -179,6 +179,8 @@ void start3() {
         procTable[pid % MAXPROC].pid = pid;
         procTable[pid % MAXPROC].status = ACTIVE;
 
+        //TODO Fork TermWriter processes
+
         charIn[i] = MboxCreate(1, sizeof(char));
         charOut[i] = MboxCreate(1, sizeof(char));
         readLines[i] = MboxCreate(10, MAXLINE + 1);
@@ -211,6 +213,8 @@ void start3() {
         zap(termDriverPID[i]);
         MboxCondSend(charIn[i], NULL, 0);
         zap(termReaderPID[i]);
+        //TODO send message to TermWriter[unit] mailbox to wake up
+        //TODO zap TermWriter
     }
 
     quit(0);
@@ -471,12 +475,18 @@ static int TermDriver(char *arg) {
         if (result != 0) {
             return 0;
         }
-
+	
+	char chr = USLOSS_TERM_STAT_CHAR(status);
         // give character to TermReader
         if (USLOSS_TERM_STAT_RECV(status) == USLOSS_DEV_BUSY) {
-            char chr = USLOSS_TERM_STAT_CHAR(status);
             MboxSend(charIn[unit], &chr, sizeof(char));
         }
+        // give character to TermWriter
+        if (USLOSS_TERM_STAT_XMIT(status) == USLOSS_DEV_READY) {
+            //Wake up termWriter to let it know that a char was written
+            MboxSend(charOut[unit], &chr, sizeof(char));
+        }
+
     }
     return 0;
 }
@@ -523,6 +533,21 @@ int TermReader(char *arg) {
    Side Effects - none.
    ----------------------------------------------------------------------- */
 int TermWriter(char *arg) {
+    //-intialize unit = atoi(arg);
+
+    //-Run while not zapped
+    //   -block on mBoxRecieve and wait for termWriteReal to send the line
+    //   -check to see if you are zapped, if so then return.
+    //   -Get line and set a control int to XMIT and do a device output to enable writing.
+
+    //   -In a loop write each char of line until you reach end (new line) 
+    //      -build a control int with the char, xmit_int , and xmit char and send to device
+    //      output, block on mailbox until TermDriver is complete.
+    //      -Block on charOut[unit] and wait for driver to send to charout[unit]
+
+    //   -Turn off the xmit int and xmit char bits in the control and do another device output
+    //   -unblock the termWriteReal process that is waiting
+
     return 0;
 }
 
