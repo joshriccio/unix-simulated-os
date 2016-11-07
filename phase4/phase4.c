@@ -38,6 +38,7 @@ int diskWriteHandler(int unit);
 int deviceOutput(USLOSS_DeviceRequest *devRequest, int unit);
 void insertDiskRequest(diskDriverInfoPtr info);
 int TermReader(char *arg);
+int TermWriter(char *arg);
 /* -------------------------- Globals ------------------------------------- */
 
 // Process Table
@@ -297,7 +298,7 @@ static int DiskDriver(char *arg) {
    Name - diskReadHandler
    Purpose - Function called by DiskDriver to process actual disk read 
              request. reads data and writes to buffer.
-   Parameters - none.
+   Parameters - int unit, the unit for the device
    Returns - void
    Side Effects - Writes data to buffer
    ----------------------------------------------------------------------- */
@@ -362,12 +363,12 @@ int diskReadHandler(int unit) {
    Name - diskWriteHandler
    Purpose - Function called by DiskDriver to process actual disk write
              request. writes data to disk
-   Parameters - none.
+   Parameters - int unit, the unit for the device
    Returns - void
    Side Effects - Writes data to disk
    ----------------------------------------------------------------------- */
 int diskWriteHandler(int unit){
-    int status;
+    int status = 0;
     int currentTrack = headDiskList[unit]->startTrack;
     int currentSector = headDiskList[unit]->startSector;
 
@@ -421,11 +422,11 @@ int diskWriteHandler(int unit){
 }
 
 /* ------------------------------------------------------------------------
-   Name - 
-   Purpose - 
-             
-   Parameters - none.
-   Returns - void
+   Name - diviceOutput
+   Purpose - Processes every device output request for the disk devices
+             and updates the head status when appropriate
+   Parameters - USLOSS_DeviceRequest *devRequest, int unit
+   Returns - int, the result of the request
    Side Effects - none.
    ----------------------------------------------------------------------- */
 int deviceOutput(USLOSS_DeviceRequest *devRequest, int unit){
@@ -447,8 +448,8 @@ int deviceOutput(USLOSS_DeviceRequest *devRequest, int unit){
 
 /* ------------------------------------------------------------------------
    Name - TermDriver
-   Purpose - TermDriver processes all terminal requests by reading from 
-             head of queue and processesing each request.
+   Purpose - TermDriver processes all terminal requests by waking from 
+             a wait device and serving the task to the TermReader or Writer
    Parameters - char *arg, not used
    Returns - int, returns 0
    Side Effects - none.
@@ -480,6 +481,14 @@ static int TermDriver(char *arg) {
     return 0;
 }
 
+/* ------------------------------------------------------------------------
+   Name - TermReader
+   Purpose - TermReader reads a character and builds a line, soting the
+             completed line in the lines mailbox to be read by user
+   Parameters - char *arg, not used
+   Returns - int, returns 0
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
 int TermReader(char *arg) {
     int unit = atoi(arg);
     char line[MAXLINE + 1];
@@ -504,6 +513,17 @@ int TermReader(char *arg) {
             index = 0;
         }
     }
+}
+/* ------------------------------------------------------------------------
+   Name - TermWriter
+   Purpose - 
+             
+   Parameters - char *arg, unit
+   Returns - int, returns 0
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
+int TermWriter(char *arg) {
+    return 0;
 }
 
 
