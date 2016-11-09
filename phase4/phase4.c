@@ -29,6 +29,7 @@ int diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack,
 void termRead(systemArgs *args);
 int termReadReal(int unit, int bufferSize, char *buffer);
 void termWrite(systemArgs *args);
+int termWriteReal(int unit, int bufferSize, char *buffer);
 void checkKernelMode(char * processName);
 void enableInterrupts();
 void addToProcessTable();
@@ -52,8 +53,7 @@ int charOut[USLOSS_TERM_UNITS];
 
 int readLines[USLOSS_TERM_UNITS];
 int writeLine[USLOSS_TERM_UNITS];
-
-int userWriteSem[USLOSS_TERM_UNITS];
+int userWriteBoxes[USLOSS_TERM_UNITS];
 
 int tracksOnDisk[USLOSS_DISK_UNITS];
 
@@ -77,6 +77,7 @@ void start3() {
     int		diskPID[USLOSS_DISK_UNITS];
     int		termDriverPID[USLOSS_TERM_UNITS];
     int		termReaderPID[USLOSS_TERM_UNITS];
+    int		termWriterPID[USLOSS_TERM_UNITS];
     int		pid;
     int		status;
 
@@ -180,12 +181,26 @@ void start3() {
         procTable[pid % MAXPROC].status = ACTIVE;
 
         //TODO Fork TermWriter processes
+        // TermWriter Processes
+        sprintf(argBuffer, "%d", i);
+        sprintf(name, "termWriter%d", i);
+        pid = fork1(name, TermWriter, argBuffer, USLOSS_MIN_STACK, 2);
+        if (pid < 0) {
+            USLOSS_Console("start3(): Can't create term writer %d\n", i);
+            USLOSS_Halt(1);
+        }
+
+        termWriterPID[i] = pid; // store pid of term Writer processes for zapping
+
+        strcpy(procTable[pid % MAXPROC].name, name);
+        procTable[pid % MAXPROC].pid = pid;
+        procTable[pid % MAXPROC].status = ACTIVE;
 
         charIn[i] = MboxCreate(1, sizeof(char));
-        charOut[i] = MboxCreate(1, sizeof(char));
+        charOut[i] = MboxCreate(0, 0);
         readLines[i] = MboxCreate(10, MAXLINE + 1);
-        writeLine[i] = MboxCreate(0, MAXLINE + 1);
-        userWriteSem[i] = semcreateReal(0);
+        writeLine[i] = MboxCreate(0, MAXLINE);
+        userWriteBoxes[i] = MboxCreate(0, sizeof(int));
     }
     
 
@@ -209,12 +224,23 @@ void start3() {
         semvReal(diskSemaphore[i]);
         zap(diskPID[i]);
     }
-    for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
-        zap(termDriverPID[i]);
+    char termFile[20];
+    FILE *kill;
+    for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term readers/writers
         MboxCondSend(charIn[i], NULL, 0);
         zap(termReaderPID[i]);
-        //TODO send message to TermWriter[unit] mailbox to wake up
-        //TODO zap TermWriter
+
+        MboxCondSend(writeLine[i], "end", 3);
+        zap(termWriterPID[i]);
+    }
+
+    for (i = 0; i < USLOSS_TERM_UNITS; i++) {  // term drivers
+        sprintf(termFile, "./term%d.in", i);
+        kill = fopen(termFile, "a");
+        fprintf(kill, "Please stop driver.\n");
+        fclose(kill);
+
+        zap(termDriverPID[i]);
     }
 
     quit(0);
@@ -476,15 +502,15 @@ static int TermDriver(char *arg) {
             return 0;
         }
 	
-	char chr = USLOSS_TERM_STAT_CHAR(status);
+        char chr = USLOSS_TERM_STAT_CHAR(status);
         // give character to TermReader
         if (USLOSS_TERM_STAT_RECV(status) == USLOSS_DEV_BUSY) {
-            MboxSend(charIn[unit], &chr, sizeof(char));
+            MboxCondSend(charIn[unit], &chr, sizeof(char));
         }
         // give character to TermWriter
         if (USLOSS_TERM_STAT_XMIT(status) == USLOSS_DEV_READY) {
             //Wake up termWriter to let it know that a char was written
-            MboxSend(charOut[unit], &chr, sizeof(char));
+            MboxCondSend(charOut[unit], NULL, 0);
         }
 
     }
@@ -534,11 +560,48 @@ int TermReader(char *arg) {
    ----------------------------------------------------------------------- */
 int TermWriter(char *arg) {
     //-intialize unit = atoi(arg);
+    int unit = atoi(arg);
+    int numberOfChars;
+    char line[MAXLINE];
+    int control = 0;
 
     //-Run while not zapped
     //   -block on mBoxRecieve and wait for termWriteReal to send the line
     //   -check to see if you are zapped, if so then return.
     //   -Get line and set a control int to XMIT and do a device output to enable writing.
+    while (!isZapped()) {
+        numberOfChars = MboxReceive(writeLine[unit], line, MAXLINE);
+        if (numberOfChars > MAXLINE) {
+            numberOfChars = 80;
+        }
+        if (isZapped()) {
+            return 0;
+        }
+        for (int i = 0; i < numberOfChars; i++) {
+            control = 0;
+            /*
+            USLOSS_TERM_CTRL_CHAR(control, line[i]);
+            USLOSS_TERM_CTRL_XMIT_INT(control);
+            USLOSS_TERM_CTRL_RECV_INT(control);
+            USLOSS_TERM_CTRL_XMIT_CHAR(control);
+            */
+            control = USLOSS_TERM_CTRL_CHAR(control, line[i]);
+            control = USLOSS_TERM_CTRL_XMIT_INT(control);
+            control = USLOSS_TERM_CTRL_RECV_INT(control);
+            control = USLOSS_TERM_CTRL_XMIT_CHAR(control);
+            
+            //USLOSS_Console("TermWriter: %c, %d\n", line[i], control);
+
+            USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, control);
+
+            MboxReceive(charOut[unit], NULL, 0);
+        }
+        control = 2;
+        USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, &control);
+        MboxSend(userWriteBoxes[unit], &numberOfChars, sizeof(int));
+    }
+
+
 
     //   -In a loop write each char of line until you reach end (new line) 
     //      -build a control int with the char, xmit_int , and xmit char and send to device
@@ -926,7 +989,37 @@ int termReadReal(int unit, int bufferSize, char *buffer) {
    Side Effects - calls termWriteReal
    ----------------------------------------------------------------------- */
 void termWrite(systemArgs *args) {
+    int result;
+    int unit = ((int) (long) args->arg3);
+    int bufferSize = ((int) (long) args->arg2);
+    char *buffer = (char *) args->arg1;
 
+    result = termWriteReal(unit, bufferSize, buffer);
+
+    args->arg2 = ((void *) (long) result);
+
+    if (result == -1) {
+        args->arg4 = ((void *) (long) -1);
+    } else {
+        args->arg4 = ((void *) (long) 0);
+    }
+}
+
+int termWriteReal(int unit, int bufferSize, char *buffer) {
+    int charsWritten;
+    if (unit < 0 || unit > 3) {
+        return -1;
+    }
+    if (bufferSize < 0) {
+        return -1;
+    }
+    // TODO: not checking upper bound of bufferSize > MAXLINE
+
+    MboxSend(writeLine[unit], buffer, bufferSize);
+
+    MboxReceive(userWriteBoxes[unit], &charsWritten, sizeof(int));
+
+    return charsWritten;
 }
 
 /* Halt USLOSS if process is not in kernal mode */
