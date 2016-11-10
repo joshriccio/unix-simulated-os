@@ -591,7 +591,7 @@ int TermWriter(char *arg) {
             control = USLOSS_TERM_CTRL_RECV_INT(control);
             control = USLOSS_TERM_CTRL_XMIT_CHAR(control);
             
-            USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, control);
+            USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit,((void *)(long) control));
 
             MboxReceive(charOut[unit], NULL, 0);
         }
