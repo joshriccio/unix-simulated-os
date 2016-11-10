@@ -1,3 +1,12 @@
+/* ------------------------------------------------------------------------
+   phase4.c
+
+   University of Arizona
+   Computer Science 452
+
+   @author Joshua Riccio
+   @author Austin George
+   ------------------------------------------------------------------------ */
 #include <usloss.h>
 #include <usyscall.h>
 #include <phase1.h>
@@ -90,7 +99,7 @@ void start3() {
         procTable[i].pid = -1;
     }
 
-    // initialize headSleepList TODO:
+    // initialize headSleepList
     headSleepList = NULL;
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {
         headDiskList[i] = NULL;
@@ -180,7 +189,6 @@ void start3() {
         procTable[pid % MAXPROC].pid = pid;
         procTable[pid % MAXPROC].status = ACTIVE;
 
-        //TODO Fork TermWriter processes
         // TermWriter Processes
         sprintf(argBuffer, "%d", i);
         sprintf(name, "termWriter%d", i);
@@ -329,7 +337,7 @@ static int DiskDriver(char *arg) {
    Purpose - Function called by DiskDriver to process actual disk read 
              request. reads data and writes to buffer.
    Parameters - int unit, the unit for the device
-   Returns - void
+   Returns - int, the result if successful
    Side Effects - Writes data to buffer
    ----------------------------------------------------------------------- */
 int diskReadHandler(int unit) {
@@ -380,7 +388,6 @@ int diskReadHandler(int unit) {
         memcpy(((char *) headDiskList[unit]->buffer) + bufferIndex, sectorBuffer, 
                 512);
         bufferIndex += 512;
-
         currentSector++;
     }
 
@@ -394,7 +401,7 @@ int diskReadHandler(int unit) {
    Purpose - Function called by DiskDriver to process actual disk write
              request. writes data to disk
    Parameters - int unit, the unit for the device
-   Returns - void
+   Returns - int, the result if succesful
    Side Effects - Writes data to disk
    ----------------------------------------------------------------------- */
 int diskWriteHandler(int unit){
@@ -552,23 +559,23 @@ int TermReader(char *arg) {
 }
 /* ------------------------------------------------------------------------
    Name - TermWriter
-   Purpose - 
-             
+   Purpose - Syncs the writing to terminal communication between the user
+             process and the terminal driver
    Parameters - char *arg, unit
    Returns - int, returns 0
    Side Effects - none.
    ----------------------------------------------------------------------- */
 int TermWriter(char *arg) {
-    //-intialize unit = atoi(arg);
     int unit = atoi(arg);
     int numberOfChars;
     char line[MAXLINE];
     int control = 0;
 
-    //-Run while not zapped
-    //   -block on mBoxRecieve and wait for termWriteReal to send the line
-    //   -check to see if you are zapped, if so then return.
-    //   -Get line and set a control int to XMIT and do a device output to enable writing.
+    /*Run while not zapped
+      block on mBoxRecieve and wait for termWriteReal to send the line
+      check to see if you are zapped, if so then return.
+      Get line and set a control int to XMIT and do a device output to enable writing.
+    */
     while (!isZapped()) {
         numberOfChars = MboxReceive(writeLine[unit], line, MAXLINE);
         if (numberOfChars > MAXLINE) {
@@ -579,37 +586,20 @@ int TermWriter(char *arg) {
         }
         for (int i = 0; i < numberOfChars; i++) {
             control = 0;
-            /*
-            USLOSS_TERM_CTRL_CHAR(control, line[i]);
-            USLOSS_TERM_CTRL_XMIT_INT(control);
-            USLOSS_TERM_CTRL_RECV_INT(control);
-            USLOSS_TERM_CTRL_XMIT_CHAR(control);
-            */
             control = USLOSS_TERM_CTRL_CHAR(control, line[i]);
             control = USLOSS_TERM_CTRL_XMIT_INT(control);
             control = USLOSS_TERM_CTRL_RECV_INT(control);
             control = USLOSS_TERM_CTRL_XMIT_CHAR(control);
             
-            //USLOSS_Console("TermWriter: %c, %d\n", line[i], control);
-
             USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, control);
 
             MboxReceive(charOut[unit], NULL, 0);
         }
         control = 2;
         USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, &control);
+        //Send number of chars written to user
         MboxSend(userWriteBoxes[unit], &numberOfChars, sizeof(int));
     }
-
-
-
-    //   -In a loop write each char of line until you reach end (new line) 
-    //      -build a control int with the char, xmit_int , and xmit char and send to device
-    //      output, block on mailbox until TermDriver is complete.
-    //      -Block on charOut[unit] and wait for driver to send to charout[unit]
-
-    //   -Turn off the xmit int and xmit char bits in the control and do another device output
-    //   -unblock the termWriteReal process that is waiting
 
     return 0;
 }
@@ -735,7 +725,7 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     }
 
     addToProcessTable();
-
+    //Build request struct
     info.unit = unit;
     info.startTrack = startTrack;
     info.startSector = startSector;
@@ -745,6 +735,7 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     info.requestType = USLOSS_DISK_READ;
     info.next = NULL;
 
+    //insert request struct into queue
     insertDiskRequest(&info);
 
     semvReal(diskSemaphore[unit]); // wake up driver
@@ -756,7 +747,8 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
 }
 
 /*
- *
+ * Inserts a new disk request struct into the queue of requests 
+ * using the circular scan algorithm
  */
 void insertDiskRequest(diskDriverInfoPtr info) {
     int unit = info->unit;
@@ -767,7 +759,8 @@ void insertDiskRequest(diskDriverInfoPtr info) {
         diskDriverInfoPtr tempA = headDiskList[unit];
         diskDriverInfoPtr tempB = headDiskList[unit]->next;
         if (info->startTrack > headDiskList[unit]->startTrack) {
-            while (tempB != NULL && tempB->startTrack < info->startTrack && tempB->startTrack > tempA->startTrack) {
+            while (tempB != NULL && tempB->startTrack < info->startTrack 
+		   && tempB->startTrack > tempA->startTrack) {
                 tempA = tempA->next;
                 tempB = tempB->next;
             }
@@ -841,7 +834,7 @@ int diskWriteReal(int unit, int startTrack, int startSector, int sectors,
     }
 
     addToProcessTable();
-
+    //Build request struct and add to queue
     info.unit = unit;
     info.startTrack = startTrack;
     info.startSector = startSector;
@@ -853,13 +846,6 @@ int diskWriteReal(int unit, int startTrack, int startSector, int sectors,
 
     insertDiskRequest(&info);
 
-    /*diskDriverInfoPtr temp = headDiskList[unit];
-    while (temp != NULL) {
-        USLOSS_Console("%d, ", temp->startTrack);
-        temp = temp->next;
-    }
-    USLOSS_Console("\n");
-    */
     semvReal(diskSemaphore[unit]);
 
     MboxReceive(procTable[getpid() % MAXPROC].mboxID, NULL, 0);
@@ -900,6 +886,13 @@ void diskSize(systemArgs *args) {
     args->arg3 = ((void *) (long) tracksInDisk);
 }
 
+/* ------------------------------------------------------------------------
+   Name - diskSizeReal
+   Purpose - Requests the actual disk size using the DeviceOutput function
+   Parameters - systemArgs args
+   Returns - int, the result of the request
+   Side Effects - none
+   ----------------------------------------------------------------------- */
 int diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
         int *tracksInDisk) {
     int status;
@@ -957,6 +950,13 @@ void termRead(systemArgs *args) {
     }
 }
 
+/* ------------------------------------------------------------------------
+   Name - termReadReal
+   Purpose - adds a new termRead request to the terminal request queue.
+   Parameters - The disk unit, buffersize, and the buffer
+   Returns - void
+   Side Effects - calls termReadReal
+   ----------------------------------------------------------------------- */
 int termReadReal(int unit, int bufferSize, char *buffer) {
     if (unit < 0 || unit > 3) {
         return -1;
@@ -1013,8 +1013,6 @@ int termWriteReal(int unit, int bufferSize, char *buffer) {
     if (bufferSize < 0) {
         return -1;
     }
-    // TODO: not checking upper bound of bufferSize > MAXLINE
-
     MboxSend(writeLine[unit], buffer, bufferSize);
 
     MboxReceive(userWriteBoxes[unit], &charsWritten, sizeof(int));
