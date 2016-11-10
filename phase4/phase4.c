@@ -99,7 +99,7 @@ void start3() {
         procTable[i].pid = -1;
     }
 
-    // initialize headSleepList TODO:
+    // initialize headSleepList
     headSleepList = NULL;
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {
         headDiskList[i] = NULL;
@@ -189,7 +189,6 @@ void start3() {
         procTable[pid % MAXPROC].pid = pid;
         procTable[pid % MAXPROC].status = ACTIVE;
 
-        //TODO Fork TermWriter processes
         // TermWriter Processes
         sprintf(argBuffer, "%d", i);
         sprintf(name, "termWriter%d", i);
@@ -389,7 +388,6 @@ int diskReadHandler(int unit) {
         memcpy(((char *) headDiskList[unit]->buffer) + bufferIndex, sectorBuffer, 
                 512);
         bufferIndex += 512;
-
         currentSector++;
     }
 
@@ -568,7 +566,6 @@ int TermReader(char *arg) {
    Side Effects - none.
    ----------------------------------------------------------------------- */
 int TermWriter(char *arg) {
-    //-intialize unit = atoi(arg);
     int unit = atoi(arg);
     int numberOfChars;
     char line[MAXLINE];
@@ -600,6 +597,7 @@ int TermWriter(char *arg) {
         }
         control = 2;
         USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, &control);
+        //Send number of chars written to user
         MboxSend(userWriteBoxes[unit], &numberOfChars, sizeof(int));
     }
 
@@ -727,7 +725,7 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     }
 
     addToProcessTable();
-
+    //Build request struct
     info.unit = unit;
     info.startTrack = startTrack;
     info.startSector = startSector;
@@ -737,6 +735,7 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
     info.requestType = USLOSS_DISK_READ;
     info.next = NULL;
 
+    //insert request struct into queue
     insertDiskRequest(&info);
 
     semvReal(diskSemaphore[unit]); // wake up driver
@@ -748,7 +747,8 @@ int diskReadReal(int unit, int startTrack, int startSector, int sectors,
 }
 
 /*
- * Inserts a new disk request struct into the queue of requests
+ * Inserts a new disk request struct into the queue of requests 
+ * using the circular scan algorithm
  */
 void insertDiskRequest(diskDriverInfoPtr info) {
     int unit = info->unit;
@@ -834,7 +834,7 @@ int diskWriteReal(int unit, int startTrack, int startSector, int sectors,
     }
 
     addToProcessTable();
-
+    //Build request struct and add to queue
     info.unit = unit;
     info.startTrack = startTrack;
     info.startSector = startSector;
@@ -1013,8 +1013,6 @@ int termWriteReal(int unit, int bufferSize, char *buffer) {
     if (bufferSize < 0) {
         return -1;
     }
-    // TODO: not checking upper bound of bufferSize > MAXLINE
-
     MboxSend(writeLine[unit], buffer, bufferSize);
 
     MboxReceive(userWriteBoxes[unit], &charsWritten, sizeof(int));
