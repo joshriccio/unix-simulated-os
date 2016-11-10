@@ -1052,3 +1052,4 @@ void removeFromProcessTable() {
     procTable[getpid() % MAXPROC].mboxID = -1;
     procTable[getpid() % MAXPROC].sleepPtr = NULL;
 }
+

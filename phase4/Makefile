@@ -13,7 +13,7 @@ PHASE3LIB = patrickphase3
 #PHASE1LIB = patrickphase1debug
 #PHASE2LIB = patrickphase2debug
 
-HDRS = libuser4.h driver.h phase1.h phase2.h phase3.h phase4.h
+HDRS = libuser.h driver.h phase1.h phase2.h phase3.h phase4.h
 
 INCLUDE = ./usloss/include
 
