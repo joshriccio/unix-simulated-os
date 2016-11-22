@@ -1,0 +1,33 @@
+start5(): Running:    simple5
+start5(): Pagers:     1
+          Mappings:   2
+          Pages:      2
+          Frames:     1
+          Children:   1
+          Iterations: 2
+          Priority:   5
+
+Child(11): starting
+
+Child(11): iteration 0
+Child(11) writing to page 0
+Child(11) writing to page 1
+
+Child(11): iteration 1
+Child(11) writing to page 0
+Child(11) writing to page 1
+
+start5(): done
+VmStats
+pages:          2
+frames:         1
+diskBlocks:     32
+freeFrames:     1
+freeDiskBlocks: 32
+switches:       229
+faults:         4
+new:            2
+pageIns:        2
+pageOuts:       3
+replaced:       0
+All processes completed.

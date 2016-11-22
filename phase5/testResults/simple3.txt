@@ -1,0 +1,28 @@
+start5(): Running:    simple3
+start5(): Pagers:     1
+          Mappings:   3
+          Pages:      3
+          Frames:     3
+          Children:   1
+          Iterations: 1
+          Priority:   5
+start5(): after call to VmInit, status = 0
+
+
+Child(11): starting
+Child(11): terminating
+
+start5(): done
+VmStats
+pages:          3
+frames:         3
+diskBlocks:     32
+freeFrames:     3
+freeDiskBlocks: 32
+switches:       18
+faults:         3
+new:            3
+pageIns:        0
+pageOuts:       0
+replaced:       0
+All processes completed.
