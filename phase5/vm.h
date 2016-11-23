@@ -30,6 +30,7 @@ typedef struct PTE {
  * Per-process information.
  */
 typedef struct Process {
+    int pid; 	     // process ID
     int  numPages;   // Size of the page table.
     PTE  *pageTable; // The page table for the process.
     // Add more stuff here */
