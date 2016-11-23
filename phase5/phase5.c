@@ -31,7 +31,7 @@ FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * allocate the messages statically
                            * and index them by pid. */
 VmStats  vmStats;
-
+void *vmRegion;
 
 static void
 FaultHandler(int  type,  // USLOSS_MMU_INT
