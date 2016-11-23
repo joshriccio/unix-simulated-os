@@ -24,7 +24,7 @@ extern void mbox_receive(sysargs *args_ptr);
 extern void mbox_condsend(sysargs *args_ptr);
 extern void mbox_condreceive(sysargs *args_ptr);
 
-static Process processes[MAXPROC];
+Process processes[MAXPROC];
 
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
@@ -62,27 +62,32 @@ start4(char *arg)
     int status;
 
     /* to get user-process access to mailbox functions */
-    systemCallVec[SYS_MBOXCREATE]      = mboxCreate;
-    systemCallVec[SYS_MBOXRELEASE]     = mboxRelease;
-    systemCallVec[SYS_MBOXSEND]        = mboxSend;
-    systemCallVec[SYS_MBOXRECEIVE]     = mboxReceive;
-    systemCallVec[SYS_MBOXCONDSEND]    = mboxCondsend;
-    systemCallVec[SYS_MBOXCONDRECEIVE] = mboxCondreceive;
+    systemCallVec[SYS_MBOXCREATE]      = mbox_create;
+    systemCallVec[SYS_MBOXRELEASE]     = mbox_release;
+    systemCallVec[SYS_MBOXSEND]        = mbox_send;
+    systemCallVec[SYS_MBOXRECEIVE]     = mbox_receive;
+    systemCallVec[SYS_MBOXCONDSEND]    = mbox_condsend;
+    systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
 
     /* user-process access to VM functions */
     systemCallVec[SYS_VMINIT]    = vmInit;
     systemCallVec[SYS_VMDESTROY] = vmDestroy;
 
+    //  ... more stuff goes here ...
+
     result = Spawn("Start5", start5, NULL, 8*USLOSS_MIN_STACK, 2, &pid);
     if (result != 0) {
-        console("start4(): Error spawning start5\n");
+        USLOSS_Console("start4(): Error spawning start5\n");
         Terminate(1);
     }
+
+    // Wait for start5 to terminate
     result = Wait(&pid, &status);
     if (result != 0) {
         console("start4(): Error waiting for start5\n");
         Terminate(1);
     }
+
     Terminate(0);
     return 0; // not reached
 
