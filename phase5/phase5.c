@@ -40,6 +40,8 @@ FaultHandler(int  type,  // USLOSS_MMU_INT
 static void vmInit(systemArgs *sysargsPtr);
 void *vmInitReal(int mappings, int pages, int frames, int pagers);
 static void vmDestroy(systemArgs *sysargsPtr);
+extern int start5(char *arg);
+
 /*
  *----------------------------------------------------------------------
  *
