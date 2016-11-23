@@ -1,0 +1,44 @@
+start5(): Running:    simple7
+start5(): Pagers:     1
+          Mappings:   1
+          Pages:      1
+          Frames:     1
+          Children:   2
+          Iterations: 1
+          Priority:   5
+start5(): after call to VmInit, status = 0
+
+
+Child(11): starting
+Child(11): str = This is the first page
+Child(11): strlen(str) = 22
+
+Child(12): starting
+Child(12): str = This is the first page
+Child(12): strlen(str) = 22
+Child(11): after memcpy
+Child(11): strcmp first attempt worked!
+Child(12): after memcpy
+Child(12): strcmp first attempt worked!
+Child(11): strcmp second attempt worked!
+Child(11): checking various vmStats
+Child(11): terminating
+
+Child(12): strcmp second attempt worked!
+Child(12): checking various vmStats
+Child(12): terminating
+
+start5(): done
+VmStats
+pages:          1
+frames:         1
+diskBlocks:     32
+freeFrames:     2
+freeDiskBlocks: 32
+switches:       19
+faults:         2
+new:            2
+pageIns:        0
+pageOuts:       0
+replaced:       0
+All processes completed.
