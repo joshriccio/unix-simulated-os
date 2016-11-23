@@ -17,14 +17,14 @@
 #include <vm.h>
 #include <string.h>
 
-extern void mbox_create(sysargs *args_ptr);
-extern void mbox_release(sysargs *args_ptr);
-extern void mbox_send(sysargs *args_ptr);
-extern void mbox_receive(sysargs *args_ptr);
-extern void mbox_condsend(sysargs *args_ptr);
-extern void mbox_condreceive(sysargs *args_ptr);
+extern void mbox_create(systemArgs *args_ptr);
+extern void mbox_release(systemArgs *args_ptr);
+extern void mbox_send(systemArgs *args_ptr);
+extern void mbox_receive(systemArgs *args_ptr);
+extern void mbox_condsend(systemArgs *args_ptr);
+extern void mbox_condreceive(systemArgs *args_ptr);
 
-static Process processes[MAXPROC];
+Process processes[MAXPROC];
 
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
@@ -37,8 +37,9 @@ static void
 FaultHandler(int  type,  // USLOSS_MMU_INT
              void *arg); // Offset within VM region
 
-static void vmInit(sysargs *sysargsPtr);
-static void vmDestroy(sysargs *sysargsPtr);
+static void vmInit(systemArgs *sysargsPtr);
+void *vmInitReal(int mappings, int pages, int frames, int pagers);
+static void vmDestroy(systemArgs *sysargsPtr);
 /*
  *----------------------------------------------------------------------
  *
@@ -62,12 +63,14 @@ start4(char *arg)
     int status;
 
     /* to get user-process access to mailbox functions */
-    systemCallVec[SYS_MBOXCREATE]      = mboxCreate;
-    systemCallVec[SYS_MBOXRELEASE]     = mboxRelease;
-    systemCallVec[SYS_MBOXSEND]        = mboxSend;
-    systemCallVec[SYS_MBOXRECEIVE]     = mboxReceive;
-    systemCallVec[SYS_MBOXCONDSEND]    = mboxCondsend;
-    systemCallVec[SYS_MBOXCONDRECEIVE] = mboxCondreceive;
+    systemCallVec[SYS_MBOXCREATE]      = mbox_create;
+    systemCallVec[SYS_MBOXRELEASE]     = mbox_release;
+    systemCallVec[SYS_MBOXSEND]        = mbox_send;
+    systemCallVec[SYS_MBOXRECEIVE]     = mbox_receive;
+    systemCallVec[SYS_MBOXCONDSEND]    = mbox_condsend;
+    systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
+    
+    // ... more stuff goes here ...
 
     /* user-process access to VM functions */
     systemCallVec[SYS_VMINIT]    = vmInit;
@@ -75,14 +78,17 @@ start4(char *arg)
 
     result = Spawn("Start5", start5, NULL, 8*USLOSS_MIN_STACK, 2, &pid);
     if (result != 0) {
-        console("start4(): Error spawning start5\n");
+        USLOSS_Console("start4(): Error spawning start5\n");
         Terminate(1);
     }
+
+    //Wait for start5 to terminate
     result = Wait(&pid, &status);
     if (result != 0) {
-        console("start4(): Error waiting for start5\n");
+        USLOSS_Console("start4(): Error waiting for start5\n");
         Terminate(1);
     }
+
     Terminate(0);
     return 0; // not reached
 
@@ -103,7 +109,7 @@ start4(char *arg)
  *
  *----------------------------------------------------------------------
  */
-static void vmInit(sysargs *args) {
+static void vmInit(systemArgs *args) {
     void *result;
 
     CheckMode();
@@ -143,7 +149,7 @@ static void vmInit(sysargs *args) {
  */
 
 static void
-vmDestroy(sysargs *sysargsPtr)
+vmDestroy(systemArgs *sysargsPtr)
 {
    CheckMode();
 } /* vmDestroy */
@@ -166,9 +172,7 @@ vmDestroy(sysargs *sysargsPtr)
  *
  *----------------------------------------------------------------------
  */
-void *
-vmInitReal(int mappings, int pages, int frames, int pagers)
-{
+void *vmInitReal(int mappings, int pages, int frames, int pagers){
    int status;
    int numPagesInVmRegion;
 
@@ -176,7 +180,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 
     // error checking
     if (mappings < 1 || pages < 1 || frames < 1 || pagers < 1) {
-        return -1;
+        return ((void *)(long)-1);
     }
     //TODO : mappings <= TAGS * pages 
 
@@ -283,10 +287,10 @@ vmDestroyReal(void)
    /* 
     * Print vm statistics.
     */
-   console("vmStats:\n");
-   console("pages: %d\n", vmStats.pages);
-   console("frames: %d\n", vmStats.frames);
-   console("blocks: %d\n", vmStats.blocks);
+   USLOSS_Console("vmStats:\n");
+   USLOSS_Console("pages: %d\n", vmStats.pages);
+   USLOSS_Console("frames: %d\n", vmStats.frames);
+   USLOSS_Console("disk blocks: %d\n", vmStats.diskBlocks); //Changed from vmStats.blocks
    /* and so on... */
 
 } /* vmDestroyReal */
