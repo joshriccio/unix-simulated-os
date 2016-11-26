@@ -23,24 +23,22 @@ extern void mbox_send(systemArgs *args_ptr);
 extern void mbox_receive(systemArgs *args_ptr);
 extern void mbox_condsend(systemArgs *args_ptr);
 extern void mbox_condreceive(systemArgs *args_ptr);
+extern int start5(char *arg);
+
+static void vmInit(systemArgs *sysargsPtr);
+void *vmInitReal(int mappings, int pages, int frames, int pagers);
+static void vmDestroy(systemArgs *sysargsPtr);
+static void FaultHandler(int  type, void *arg);
 
 Process processes[MAXPROC];
-
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
                            * allocate the messages statically
                            * and index them by pid. */
 VmStats  vmStats;
 void *vmRegion;
+FTE *frameTable;
 
-static void
-FaultHandler(int  type,  // USLOSS_MMU_INT
-             void *arg); // Offset within VM region
-
-static void vmInit(systemArgs *sysargsPtr);
-void *vmInitReal(int mappings, int pages, int frames, int pagers);
-static void vmDestroy(systemArgs *sysargsPtr);
-extern int start5(char *arg);
 
 /*
  *----------------------------------------------------------------------
@@ -57,9 +55,7 @@ extern int start5(char *arg);
  *
  *----------------------------------------------------------------------
  */
-int
-start4(char *arg)
-{
+int start4(char *arg){
     int pid;
     int result;
     int status;
@@ -150,9 +146,7 @@ static void vmInit(systemArgs *args) {
  *----------------------------------------------------------------------
  */
 
-static void
-vmDestroy(systemArgs *sysargsPtr)
-{
+static void vmDestroy(systemArgs *sysargsPtr){
    CheckMode();
 } /* vmDestroy */
 
@@ -195,21 +189,22 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
 
 
    /*
-    * Initialize page tables.
+    * Initialize page tables, and fault mbox.
     */
    for (int i = 0; i < MAXPROC; i++) {
        processes[i].numPages = pages;
        processes[i].pageTable = malloc(pages * sizeof(PTE));
+       
+       faults[i].pid = -1;
+       faults[i].replyMbox = -1;
+       faults[i].addr = NULL;
    }
 
    /*
     * Initialize frame tables.
     */
-
-   /* 
-    * Create the fault mailbox.
-    */
-
+   frameTable = malloc(frames * sizeof(FTE));
+   
    /*
     * Fork the pagers.
     */
@@ -243,9 +238,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
  *
  *----------------------------------------------------------------------
  */
-void
-PrintStats(void)
-{
+void PrintStats(void){
      USLOSS_Console("VmStats\n");
      USLOSS_Console("pages:          %d\n", vmStats.pages);
      USLOSS_Console("frames:         %d\n", vmStats.frames);
@@ -277,9 +270,7 @@ PrintStats(void)
  *
  *----------------------------------------------------------------------
  */
-void
-vmDestroyReal(void)
-{
+void vmDestroyReal(void){
 
    CheckMode();
    USLOSS_MmuDone();
@@ -305,7 +296,8 @@ vmDestroyReal(void)
  * Handles an MMU interrupt. Simply stores information about the
  * fault in a queue, wakes a waiting pager, and blocks until
  * the fault has been handled.
- *
+ * 
+ * Parameters: int  type = USLOSS_MMU_INT , void *arg  = Offset within VM region
  * Results:
  * None.
  *
@@ -314,10 +306,7 @@ vmDestroyReal(void)
  *
  *----------------------------------------------------------------------
  */
-static void
-FaultHandler(int  type /* USLOSS_MMU_INT */,
-             void *arg  /* Offset within VM region */)
-{
+static void FaultHandler(int  type, void *arg){
    int cause;
 
    int offset = (int) (long) arg;
@@ -347,9 +336,7 @@ FaultHandler(int  type /* USLOSS_MMU_INT */,
  *
  *----------------------------------------------------------------------
  */
-static int
-Pager(char *buf)
-{
+static int Pager(char *buf){
     while(1) {
         /* Wait for fault to occur (receive from mailbox) */
         /* Look for free frame */

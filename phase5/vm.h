@@ -47,4 +47,15 @@ typedef struct FaultMsg {
     // Add more stuff here.
 } FaultMsg;
 
+/*
+ * Frame table entry.
+ */
+typedef struct FTE {
+    int  state;      // See above.
+    int  pid;        // pid of process using this frame 
+    PTE  *page;      // Page mapped to frame, -1 if none.
+    
+    // Add more stuff here
+} FTE;
+
 #define CheckMode() assert(USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE)
