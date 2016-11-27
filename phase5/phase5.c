@@ -1,10 +1,12 @@
-/*
- * skeleton.c
- *
- * This is a skeleton for phase5 of the programming assignment. It
- * doesn't do much -- it is just intended to get you started.
- */
+/* ------------------------------------------------------------------------
+   phase5.c
 
+   University of Arizona
+   Computer Science 452
+ 
+   @author Joshua Riccio
+   @author Austin George
+   ------------------------------------------------------------------------ */
 
 #include <assert.h>
 #include <phase1.h>
@@ -29,6 +31,7 @@ static void vmInit(systemArgs *sysargsPtr);
 void *vmInitReal(int mappings, int pages, int frames, int pagers);
 static void vmDestroy(systemArgs *sysargsPtr);
 static void FaultHandler(int  type, void *arg);
+static int Pager(char *buf);
 
 Process processes[MAXPROC];
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
@@ -38,7 +41,8 @@ FaultMsg faults[MAXPROC]; /* Note that a process can have only
 VmStats  vmStats;
 void *vmRegion;
 FTE *frameTable;
-
+int *pagerPids;
+int pagerMbox;
 
 /*
  *----------------------------------------------------------------------
@@ -204,10 +208,20 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
     * Initialize frame tables.
     */
    frameTable = malloc(frames * sizeof(FTE));
-   
+   for (int i=0; i<frames; i++){
+      frameTable[i].state = -1;
+      frameTable[i].pid = -1;
+      frameTable[i].page = NULL;
+   }   
    /*
     * Fork the pagers.
     */
+   pagerPids = malloc(pagers * sizeof(int));
+   char buf[100];
+   pagerMbox = MboxCreate(pagers, sizeof(int));
+   for (int i=0; i<frames; i++){
+      pagerPids[i] = fork1("pagerProcess", Pager, buf, USLOSS_MIN_STACK, 2); 
+   }
 
    /*
     * Zero out, then initialize, the vmStats structure
@@ -215,10 +229,17 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    memset((char *) &vmStats, 0, sizeof(VmStats));
    vmStats.pages = pages;
    vmStats.frames = frames;
-   /*
-    * Initialize other vmStats fields.
-    */
+   vmStats.diskBlocks = 0;
+   vmStats.freeFrames = frames;
+   vmStats.freeDiskBlocks = 0; //??
+   vmStats.switches = 0;
+   vmStats.faults = 0;
+   vmStats.new = 0;
+   vmStats.pageIns = 0;
+   vmStats.pageOuts = 0;
+   vmStats.replaced = 0;
 
+   vmRegion = USLOSS_MmuRegion(&numPagesInVmRegion);
    return USLOSS_MmuRegion(&numPagesInVmRegion);
 } /* vmInitReal */
 
@@ -337,8 +358,10 @@ static void FaultHandler(int  type, void *arg){
  *----------------------------------------------------------------------
  */
 static int Pager(char *buf){
+    int pid;
     while(1) {
         /* Wait for fault to occur (receive from mailbox) */
+        MboxReceive(pagerMbox, &pid, sizeof(int));
         /* Look for free frame */
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
