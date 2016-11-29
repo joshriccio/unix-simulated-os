@@ -1,0 +1,115 @@
+start5(): Running:    simple6
+start5(): Pagers:     1
+          Mappings:   7
+          Pages:      7
+          Frames:     6
+          Children:   1
+          Iterations: 10
+          Priority:   5
+
+Child(11): starting
+
+Child(11): iteration 0
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 1
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 2
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 3
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 4
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 5
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 6
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 7
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 8
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+Child(11): iteration 9
+Child(11): writing to page 0
+Child(11): writing to page 1
+Child(11): writing to page 2
+Child(11): writing to page 3
+Child(11): writing to page 4
+Child(11): writing to page 5
+Child(11): writing to page 6
+
+start5(): done
+VmStats
+pages:          7
+frames:         6
+diskBlocks:     32
+freeFrames:     6
+freeDiskBlocks: 32
+switches:       3296
+faults:         70
+new:            7
+pageIns:        63
+pageOuts:       64
+replaced:       0
+All processes completed.

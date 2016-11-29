@@ -30,7 +30,7 @@ typedef struct PTE {
  * Per-process information.
  */
 typedef struct Process {
-    int  pid;        // process ID
+    int pid; 	     // process ID
     int  numPages;   // Size of the page table.
     PTE  *pageTable; // The page table for the process.
     // Add more stuff here */
@@ -46,5 +46,16 @@ typedef struct FaultMsg {
     int  replyMbox;  // Mailbox to send reply.
     // Add more stuff here.
 } FaultMsg;
+
+/*
+ * Frame table entry.
+ */
+typedef struct FTE {
+    int  state;      // See above.
+    int  pid;        // pid of process using this frame 
+    PTE  *page;      // Page mapped to frame, -1 if none.
+    
+    // Add more stuff here
+} FTE;
 
 #define CheckMode() assert(USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE)

@@ -1,9 +1,11 @@
 /*
- * simple5.c
+ * simple6.c
  *
  * One process writes every page, where frames = pages-1. If the clock
  * algorithm starts with frame 0, this will cause a page fault on every
- * access. 
+ * access.  This test requires writing pages to disk and reading them
+ * back in the next time the page is accessed. The test checks for the
+ * correct number of page faults, page ins, and page outs.
  */
 #include <phase5.h>
 #include <usyscall.h>
@@ -14,12 +16,12 @@
 
 #define Tconsole USLOSS_Console
 
-#define TEST        "simple5"
-#define PAGES       2
+#define TEST        "simple6"
+#define PAGES       7
 #define CHILDREN    1
 #define FRAMES      (PAGES-1)
 #define PRIORITY    5
-#define ITERATIONS  2
+#define ITERATIONS  10
 #define PAGERS      1
 #define MAPPINGS    PAGES
 
@@ -46,7 +48,7 @@ Child(char *arg)
         Tconsole("\nChild(%d): iteration %d\n", pid, i);
         before = vmStats;
         for (page = 0; page < PAGES; page++) {
-            Tconsole("Child(%d) writing to page %d\n", pid, page);
+            Tconsole("Child(%d): writing to page %d\n", pid, page);
             * ((int *) (vmRegion + (page * USLOSS_MmuPageSize()))) = page;
             value = * ((int *) (vmRegion + (page * USLOSS_MmuPageSize())));
             assert(value == page);
