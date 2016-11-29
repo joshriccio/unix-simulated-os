@@ -33,7 +33,7 @@ static void vmDestroy(systemArgs *sysargsPtr);
 static void FaultHandler(int  type, void *arg);
 static int Pager(char *buf);
 
-Process processes[MAXPROC];
+Process procTable[MAXPROC];
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
                            * allocate the messages statically
@@ -43,6 +43,8 @@ void *vmRegion;
 FTE *frameTable;
 int *pagerPids;
 int pagerMbox;
+
+int vmStatSem;
 
 /*
  *----------------------------------------------------------------------
@@ -73,6 +75,7 @@ int start4(char *arg){
     systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
     
     // ... more stuff goes here ...
+    vmStatSem = semcreateReal(1);  // MUTEX for vmStats
 
     /* user-process access to VM functions */
     systemCallVec[SYS_VMINIT]    = vmInit;
@@ -182,6 +185,11 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
     if (mappings < 1 || pages < 1 || frames < 1 || pagers < 1) {
         return ((void *)(long)-1);
     }
+
+    if (pagers > MAXPAGERS) {
+        return ((void *)(long)-1);
+    }
+
     //TODO : mappings <= TAGS * pages 
 
    status = USLOSS_MmuInit(mappings, pages, frames);
@@ -196,11 +204,12 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
     * Initialize page tables, and fault mbox.
     */
    for (int i = 0; i < MAXPROC; i++) {
-       processes[i].numPages = pages;
-       processes[i].pageTable = malloc(pages * sizeof(PTE));
+       procTable[i].pid = -1;
+       procTable[i].numPages = pages;
+       procTable[i].pageTable = malloc(pages * sizeof(PTE));
        
        faults[i].pid = -1;
-       faults[i].replyMbox = -1;
+       faults[i].replyMbox = MboxCreate(1, 0);
        faults[i].addr = NULL;
    }
 
@@ -220,18 +229,23 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    char buf[100];
    pagerMbox = MboxCreate(pagers, sizeof(int));
    for (int i=0; i<frames; i++){
-      pagerPids[i] = fork1("pagerProcess", Pager, buf, USLOSS_MIN_STACK, 2); 
+      pagerPids[i] = fork1("pagerProcess", Pager, buf, USLOSS_MIN_STACK, 
+              PAGER_PRIORITY);
    }
 
    /*
     * Zero out, then initialize, the vmStats structure
     */
+   int sectorSize, sectorsInTrack, numTracksOnDisk;
+
+   diskSizeReal(1, &sectorSize, &sectorsInTrack, &numTracksOnDisk);
+
    memset((char *) &vmStats, 0, sizeof(VmStats));
    vmStats.pages = pages;
    vmStats.frames = frames;
-   vmStats.diskBlocks = 0;
+   vmStats.diskBlocks = numTracksOnDisk;
    vmStats.freeFrames = frames;
-   vmStats.freeDiskBlocks = 0; //??
+   vmStats.freeDiskBlocks = numTracksOnDisk;
    vmStats.switches = 0;
    vmStats.faults = 0;
    vmStats.new = 0;
@@ -240,7 +254,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    vmStats.replaced = 0;
 
    vmRegion = USLOSS_MmuRegion(&numPagesInVmRegion);
-   return USLOSS_MmuRegion(&numPagesInVmRegion);
+   return vmRegion;
 } /* vmInitReal */
 
 
@@ -335,11 +349,29 @@ static void FaultHandler(int  type, void *arg){
    assert(type == USLOSS_MMU_INT);
    cause = USLOSS_MmuGetCause();
    assert(cause == USLOSS_MMU_FAULT);
+
+   // update vmStats
+   sempReal(vmStatSem);
    vmStats.faults++;
+   semvReal(vmStatSem);
+
+   int pid = getPID5();
+
+   if (procTable[pid % MAXPROC].pid != pid) {
+       procTable[pid % MAXPROC].pid = pid;
+   }
+
    /*
     * Fill in faults[pid % MAXPROC], send it to the pagers, and wait for the
     * reply.
     */
+   faults[pid % MAXPROC].pid = pid;
+   faults[pid % MAXPROC].addr = vmRegion + offset;
+
+   MboxSend(pagerMbox, pid, sizeof(int));
+
+    MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
+
 } /* FaultHandler */
 
 /*
@@ -363,6 +395,7 @@ static int Pager(char *buf){
         /* Wait for fault to occur (receive from mailbox) */
         MboxReceive(pagerMbox, &pid, sizeof(int));
         /* Look for free frame */
+
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
         /* Load page into frame from disk, if necessary */
@@ -370,3 +403,9 @@ static int Pager(char *buf){
     }
     return 0;
 } /* Pager */
+
+int getPID5() {
+    int pid;
+    getPID_real(pid);
+    return pid;
+}
