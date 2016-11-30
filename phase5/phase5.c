@@ -25,6 +25,12 @@ extern void mbox_send(systemArgs *args_ptr);
 extern void mbox_receive(systemArgs *args_ptr);
 extern void mbox_condsend(systemArgs *args_ptr);
 extern void mbox_condreceive(systemArgs *args_ptr);
+extern int  semcreateReal(int init_value);
+extern int  sempReal(int semaphore);
+extern int  semvReal(int semaphore);
+extern int getPID_real(int *pid);
+extern int diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
+        int *tracksInDisk);
 extern int start5(char *arg);
 
 static void vmInit(systemArgs *sysargsPtr);
@@ -32,6 +38,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers);
 static void vmDestroy(systemArgs *sysargsPtr);
 static void FaultHandler(int  type, void *arg);
 static int Pager(char *buf);
+int getPID5();
 
 Process procTable[MAXPROC];
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
@@ -43,7 +50,7 @@ void *vmRegion;
 FTE *frameTable;
 int *pagerPids;
 int pagerMbox;
-
+int vmInitialized;
 int vmStatSem;
 
 /*
@@ -75,7 +82,7 @@ int start4(char *arg){
     systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
     
     // ... more stuff goes here ...
-    vmStatSem = semcreateReal(1);  // MUTEX for vmStats
+    SemCreate(1, &vmStatSem);  // MUTEX for vmStats
 
     /* user-process access to VM functions */
     systemCallVec[SYS_VMINIT]    = vmInit;
@@ -218,7 +225,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
     */
    frameTable = malloc(frames * sizeof(FTE));
    for (int i=0; i<frames; i++){
-      frameTable[i].state = -1;
+      frameTable[i].state = UNUSED;
       frameTable[i].pid = -1;
       frameTable[i].page = NULL;
    }   
@@ -254,6 +261,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    vmStats.replaced = 0;
 
    vmRegion = USLOSS_MmuRegion(&numPagesInVmRegion);
+   vmInitialized = 1;
    return vmRegion;
 } /* vmInitReal */
 
@@ -355,7 +363,9 @@ static void FaultHandler(int  type, void *arg){
    vmStats.faults++;
    semvReal(vmStatSem);
 
-   int pid = getPID5();
+   //int pid = getPID5(); //SEG FAULT
+   int pid;
+   getPID_real(&pid);
 
    if (procTable[pid % MAXPROC].pid != pid) {
        procTable[pid % MAXPROC].pid = pid;
@@ -368,10 +378,10 @@ static void FaultHandler(int  type, void *arg){
    faults[pid % MAXPROC].pid = pid;
    faults[pid % MAXPROC].addr = vmRegion + offset;
 
-   MboxSend(pagerMbox, pid, sizeof(int));
+   MboxSend(pagerMbox, &pid, sizeof(int));
 
-    MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
-
+   MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
+   USLOSS_Console("FaultHandler(): Done\n");
 } /* FaultHandler */
 
 /*
@@ -395,17 +405,37 @@ static int Pager(char *buf){
         /* Wait for fault to occur (receive from mailbox) */
         MboxReceive(pagerMbox, &pid, sizeof(int));
         /* Look for free frame */
-
+        int freeFrame = -1;
+	int page = -1;
+        for(int i=0; i<vmStats.frames; i++){
+	    if(frameTable[i].state == UNUSED){
+                //Save frame index, break out of loop
+                freeFrame = i;
+		vmStats.freeFrames--;
+            }
+        }
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
+        if(freeFrame == -1){
+            //No frame was found
+        }else{
+	    page = ((int)(long)(faults[pid % MAXPROC].addr - vmRegion)) / USLOSS_MmuPageSize();
+            procTable[pid].pageTable[page].state = INCORE;
+            procTable[pid].pageTable[page].frame = freeFrame;
+            //update frameTable
+            frameTable[freeFrame].state = 1; 
+            frameTable[freeFrame].page = &procTable[pid].pageTable[page];
+            frameTable[freeFrame].pid = pid;
+        }
         /* Load page into frame from disk, if necessary */
         /* Unblock waiting (faulting) process */
+        MboxSend(faults[pid % MAXPROC].replyMbox, NULL, 0);
     }
     return 0;
 } /* Pager */
 
 int getPID5() {
     int pid;
-    getPID_real(pid);
+    getPID_real(&pid);
     return pid;
 }
