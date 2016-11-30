@@ -1,7 +1,16 @@
 
 #include "usloss.h"
+#include "vm.h"
+#include <phase1.h>
+#include "phase2.h" 
+#include <phase3.h>
+#include <phase4.h>
+#include <phase5.h>
+
 #define DEBUG 0
 extern int debugflag;
+extern int vmInitialized;
+extern Process procTable[MAXPROC];
 
 void
 p1_fork(int pid)
@@ -20,6 +29,22 @@ p1_switch(int old, int new)
 {
     if (DEBUG && debugflag)
         USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
+    //Check if vmInit has been called
+    if(vmInitialized){
+        USLOSS_Console("p1_switch(): The VM is initialized\n");
+	//Map each page from the new processes page table to the correct frame in the MMU.
+	for(int page=0; page<vmStats.pages; page++){
+            int error = USLOSS_MmuMap(0, page, 
+	                procTable[new].pageTable[page].frame, USLOSS_MMU_PROT_RW);
+	    if(error != USLOSS_MMU_OK){
+	        USLOSS_Console("p1_switch(): USLOSS_MmuMap error: %d\n", error);
+	    }
+	    //Set access to RW, the scecond parameter is the access bits,
+	    //USLOSS_MMU_REF          1       /* Page has been referenced */
+	    //USLOSS_MMU_DIRTY        2       /* Page has been written */
+            USLOSS_MmuSetAccess(procTable[new].pageTable[page].frame, 3);
+        }
+    }
 } /* p1_switch */
 
 void
