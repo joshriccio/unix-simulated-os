@@ -1,11 +1,13 @@
 
 #include "usloss.h"
-#include "vm.h"
 #include <phase1.h>
-#include "phase2.h" 
+#include <phase2.h>
 #include <phase3.h>
 #include <phase4.h>
 #include <phase5.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <vm.h>
 
 #define DEBUG 0
 extern int debugflag;
