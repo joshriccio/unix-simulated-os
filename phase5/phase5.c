@@ -25,6 +25,12 @@ extern void mbox_send(systemArgs *args_ptr);
 extern void mbox_receive(systemArgs *args_ptr);
 extern void mbox_condsend(systemArgs *args_ptr);
 extern void mbox_condreceive(systemArgs *args_ptr);
+extern int  semcreateReal(int init_value);
+extern int  sempReal(int semaphore);
+extern int  semvReal(int semaphore);
+extern int  getPID_real(int *pid);
+extern int diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
+        int *tracksInDisk);
 extern int start5(char *arg);
 
 static void vmInit(systemArgs *sysargsPtr);
@@ -32,6 +38,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers);
 static void vmDestroy(systemArgs *sysargsPtr);
 static void FaultHandler(int  type, void *arg);
 static int Pager(char *buf);
+int getPID5();
 
 Process procTable[MAXPROC];
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
@@ -75,7 +82,7 @@ int start4(char *arg){
     systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
     
     // ... more stuff goes here ...
-    vmStatSem = semcreateReal(1);  // MUTEX for vmStats
+    SemCreate(1, &vmStatSem);  // MUTEX for vmStats
 
     /* user-process access to VM functions */
     systemCallVec[SYS_VMINIT]    = vmInit;
@@ -368,9 +375,9 @@ static void FaultHandler(int  type, void *arg){
    faults[pid % MAXPROC].pid = pid;
    faults[pid % MAXPROC].addr = vmRegion + offset;
 
-   MboxSend(pagerMbox, pid, sizeof(int));
+   MboxSend(pagerMbox, &pid, sizeof(int));
 
-    MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
+   MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
 
 } /* FaultHandler */
 
@@ -406,6 +413,6 @@ static int Pager(char *buf){
 
 int getPID5() {
     int pid;
-    getPID_real(pid);
+    getPID_real(&pid);
     return pid;
 }
