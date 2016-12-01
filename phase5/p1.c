@@ -29,23 +29,52 @@ p1_fork(int pid)
 void
 p1_switch(int old, int new)
 {
-    if (DEBUG && debugflag)
+    if (DEBUG && debugflag) {
         USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
+        USLOSS_Console("p1_switch(): new = %d, vm = %d\n", new, procTable[new].vm);
+    }
+
+    int result;
+
     //Check if vmInit has been called
-    if(vmInitialized){
-        USLOSS_Console("p1_switch(): The VM is initialized\n");
-	//Map each page from the new processes page table to the correct frame in the MMU.
-	for(int page=0; page<vmStats.pages; page++){
-            int error = USLOSS_MmuMap(0, page, 
-	                procTable[new].pageTable[page].frame, USLOSS_MMU_PROT_RW);
-	    if(error != USLOSS_MMU_OK){
-	        USLOSS_Console("p1_switch(): USLOSS_MmuMap error: %d\n", error);
-	    }
+    if(vmInitialized ){
+        //USLOSS_Console("p1_switch(): The VM is initialized\n");
+
+        // if old is a vm process
+        if (procTable[old].vm) {
+            for(int page=0; page<vmStats.pages; page++){
+                if (procTable[old].pageTable[page].frame != -1) {
+                    result = USLOSS_MmuUnmap(0, page);
+                    if (result != USLOSS_MMU_OK) {
+                        USLOSS_Console("p1_switch(old): "
+                                "USLOSS_MmuUnmap Error: %d\n", result);
+                    }
+                }
+            }
+        }
+
+        // if new is a vm process
+        if (procTable[new].vm) {
+            for(int page=0; page<vmStats.pages; page++){
+                if (procTable[new].pageTable[page].frame != -1) {
+                    result = USLOSS_MmuMap(0, page, 
+                        procTable[new].pageTable[page].frame, 
+                        USLOSS_MMU_PROT_RW);
+                    if(result != USLOSS_MMU_OK){
+                        USLOSS_Console("p1_switch(new): USLOSS_MmuMap error: "
+                                "%d\n", result);
+                    }
+                    // TODO: figure out status of mapping
+                    USLOSS_MmuSetAccess(procTable[new].pageTable[page].frame, 
+                            3);
+                }
+            }
+
+        }
+
 	    //Set access to RW, the scecond parameter is the access bits,
 	    //USLOSS_MMU_REF          1       /* Page has been referenced */
 	    //USLOSS_MMU_DIRTY        2       /* Page has been written */
-            USLOSS_MmuSetAccess(procTable[new].pageTable[page].frame, 3);
-        }
     }
 } /* p1_switch */
 
