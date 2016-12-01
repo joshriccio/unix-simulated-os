@@ -36,6 +36,7 @@ extern int start5(char *arg);
 static void vmInit(systemArgs *sysargsPtr);
 void *vmInitReal(int mappings, int pages, int frames, int pagers);
 static void vmDestroy(systemArgs *sysargsPtr);
+void vmDestroyReal(void);
 static void FaultHandler(int  type, void *arg);
 static int Pager(char *buf);
 int getPID5();
@@ -48,6 +49,7 @@ FaultMsg faults[MAXPROC]; /* Note that a process can have only
 VmStats  vmStats;
 void *vmRegion;
 FTE *frameTable;
+int numPagers;
 int *pagerPids;
 int pagerMbox;
 int vmInitialized;
@@ -162,6 +164,7 @@ static void vmInit(systemArgs *args) {
 
 static void vmDestroy(systemArgs *sysargsPtr){
    CheckMode();
+   vmDestroyReal();
 } /* vmDestroy */
 
 
@@ -212,8 +215,13 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
     */
    for (int i = 0; i < MAXPROC; i++) {
        procTable[i].pid = -1;
+       procTable[i].vm = 0;
        procTable[i].numPages = pages;
        procTable[i].pageTable = malloc(pages * sizeof(PTE));
+
+       for (int page = 0; page < pages; page++) {
+           procTable[i].pageTable[page].frame = -1;
+       }
        
        faults[i].pid = -1;
        faults[i].replyMbox = MboxCreate(1, 0);
@@ -227,11 +235,12 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    for (int i=0; i<frames; i++){
       frameTable[i].state = UNUSED;
       frameTable[i].pid = -1;
-      frameTable[i].page = NULL;
+      frameTable[i].page = -1;
    }   
    /*
     * Fork the pagers.
     */
+   numPagers = pagers;
    pagerPids = malloc(pagers * sizeof(int));
    char buf[100];
    pagerMbox = MboxCreate(pagers, sizeof(int));
@@ -320,14 +329,27 @@ void vmDestroyReal(void){
    /*
     * Kill the pagers here.
     */
+   int terminateMsg = -1;
+   for (int i = 0; i < numPagers; i++) {
+       MboxSend(pagerMbox, &terminateMsg, sizeof(int));
+   }
+
+   for (int i = 0; i < numPagers; i++) {
+       zap(pagerPids[i]);
+   }
+
    /* 
     * Print vm statistics.
     */
    USLOSS_Console("vmStats:\n");
-   USLOSS_Console("pages: %d\n", vmStats.pages);
+   PrintStats();
+   /*USLOSS_Console("pages: %d\n", vmStats.pages);
    USLOSS_Console("frames: %d\n", vmStats.frames);
    USLOSS_Console("disk blocks: %d\n", vmStats.diskBlocks); //Changed from vmStats.blocks
+   */
    /* and so on... */
+
+   //TODO: free memory, call mmuDone
 
 } /* vmDestroyReal */
 
@@ -367,9 +389,8 @@ static void FaultHandler(int  type, void *arg){
    int pid;
    getPID_real(&pid);
 
-   if (procTable[pid % MAXPROC].pid != pid) {
-       procTable[pid % MAXPROC].pid = pid;
-   }
+   procTable[pid % MAXPROC].pid = pid;
+   procTable[pid % MAXPROC].vm = 1;
 
    /*
     * Fill in faults[pid % MAXPROC], send it to the pagers, and wait for the
@@ -381,7 +402,7 @@ static void FaultHandler(int  type, void *arg){
    MboxSend(pagerMbox, &pid, sizeof(int));
 
    MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
-   USLOSS_Console("FaultHandler(): Done\n");
+   //USLOSS_Console("FaultHandler(): Done\n");
 } /* FaultHandler */
 
 /*
@@ -401,33 +422,76 @@ static void FaultHandler(int  type, void *arg){
  */
 static int Pager(char *buf){
     int pid;
-    while(1) {
+
+    while (1) {
+
         /* Wait for fault to occur (receive from mailbox) */
         MboxReceive(pagerMbox, &pid, sizeof(int));
-        /* Look for free frame */
+
+        if (pid == -1 ) {
+            break;
+        }
+        
+        //USLOSS_Console("Pager(): running/n");
+
         int freeFrame = -1;
-	int page = -1;
-        for(int i=0; i<vmStats.frames; i++){
-	    if(frameTable[i].state == UNUSED){
-                //Save frame index, break out of loop
-                freeFrame = i;
-		vmStats.freeFrames--;
+        int page = -1;
+
+        /* Look for free frame */
+        for (int i = 0; i < vmStats.frames; i++) {
+            if (frameTable[i].state == UNUSED){
+                freeFrame = i; // save frame index, break out of loop
+
+                sempReal(vmStatSem);
+                vmStats.freeFrames--;
+                vmStats.new++;
+                semvReal(vmStatSem);
+
+                break;
             }
         }
+
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
-        if(freeFrame == -1){
+        if (freeFrame == -1) {
             //No frame was found
-        }else{
-	    page = ((int)(long)(faults[pid % MAXPROC].addr - vmRegion)) / USLOSS_MmuPageSize();
+        } else {
+
+            /* find page number */
+            page = ((int)(long)(faults[pid % MAXPROC].addr - vmRegion)) 
+                / USLOSS_MmuPageSize();
+            
+            /* update page table */
             procTable[pid].pageTable[page].state = INCORE;
             procTable[pid].pageTable[page].frame = freeFrame;
-            //update frameTable
-            frameTable[freeFrame].state = 1; 
-            frameTable[freeFrame].page = &procTable[pid].pageTable[page];
+            
+            /* update frame table */
+            frameTable[freeFrame].state = REFERENCED; 
+            // TODO: mark as dirty?
+            frameTable[freeFrame].page = page;
             frameTable[freeFrame].pid = pid;
         }
-        /* Load page into frame from disk, if necessary */
+        //USLOSS_Console("Pager(): before mapping\n");
+
+        /* Load page into frame from disk or initialize frame */
+        // if (page is on disk) {
+        // } else {
+            int result = USLOSS_MmuMap(0, page, freeFrame, USLOSS_MMU_PROT_RW);
+            if (!result == USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n", result);
+            }
+            //USLOSS_Console("Pager(): after mapping\n");
+
+            memset(faults[pid % MAXPROC].addr,
+                    0, USLOSS_MmuPageSize());
+
+            result = USLOSS_MmuUnmap(0, page);
+            if (!result == USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: %d\n", result);
+            }
+            
+        //USLOSS_Console("Pager(): after unmapping\n");
+
         /* Unblock waiting (faulting) process */
         MboxSend(faults[pid % MAXPROC].replyMbox, NULL, 0);
     }
