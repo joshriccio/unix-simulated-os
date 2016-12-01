@@ -13,6 +13,9 @@
  */
 #define UNUSED 500
 #define INCORE 501
+#define REFERENCED 502
+#define CLEAN 503
+#define DIRTY 504
 /* You'll probably want more states */
 
 
@@ -51,10 +54,9 @@ typedef struct FaultMsg {
  * Frame table entry.
  */
 typedef struct FTE {
-    int  state;      // See above.
-    int  pid;        // pid of process using this frame 
-    PTE  *page;      // Page mapped to frame, -1 if none.
-    
+    int state;      // See above.
+    int pid;        // pid of process using this frame 
+    int page;       // Page mapped to frame, -1 if none.
     // Add more stuff here
 } FTE;
 
