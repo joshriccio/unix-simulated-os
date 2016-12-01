@@ -227,7 +227,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    for (int i=0; i<frames; i++){
       frameTable[i].state = UNUSED;
       frameTable[i].pid = -1;
-      frameTable[i].page = NULL;
+      frameTable[i].page = -1;
    }   
    /*
     * Fork the pagers.
@@ -401,33 +401,65 @@ static void FaultHandler(int  type, void *arg){
  */
 static int Pager(char *buf){
     int pid;
-    while(1) {
+
+    while (1) {
+
         /* Wait for fault to occur (receive from mailbox) */
         MboxReceive(pagerMbox, &pid, sizeof(int));
-        /* Look for free frame */
+
         int freeFrame = -1;
-	int page = -1;
-        for(int i=0; i<vmStats.frames; i++){
-	    if(frameTable[i].state == UNUSED){
-                //Save frame index, break out of loop
-                freeFrame = i;
-		vmStats.freeFrames--;
+        int page = -1;
+
+        /* Look for free frame */
+        for (int i = 0; i < vmStats.frames; i++) {
+            if (frameTable[i].state == UNUSED){
+                freeFrame = i; // save frame index, break out of loop
+
+                sempReal(vmStatSem);
+                vmStats.freeFrames--;
+                semvReal(vmStatSem);
+
+                break;
             }
         }
+
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
-        if(freeFrame == -1){
+        if (freeFrame == -1) {
             //No frame was found
-        }else{
-	    page = ((int)(long)(faults[pid % MAXPROC].addr - vmRegion)) / USLOSS_MmuPageSize();
+        } else {
+
+            /* find page number */
+            page = ((int)(long)(faults[pid % MAXPROC].addr - vmRegion)) 
+                / USLOSS_MmuPageSize();
+            
+            /* update page table */
             procTable[pid].pageTable[page].state = INCORE;
             procTable[pid].pageTable[page].frame = freeFrame;
-            //update frameTable
-            frameTable[freeFrame].state = 1; 
-            frameTable[freeFrame].page = &procTable[pid].pageTable[page];
+            
+            /* update frame table */
+            frameTable[freeFrame].state = REFERENCED; 
+            // TODO: mark as dirty?
+            frameTable[freeFrame].page = page;
             frameTable[freeFrame].pid = pid;
         }
-        /* Load page into frame from disk, if necessary */
+
+        /* Load page into frame from disk or initialize frame */
+        // if (page is on disk) {
+        // } else {
+            int result = USLOSS_MmuMap(0, page, freeFrame, USLOSS_MMU_PROT_RW);
+            if (!result == USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n", result);
+            }
+
+            memset((char *) vmRegion + (int) (long) faults[pid % MAXPROC].addr,
+                    0, USLOSS_MmuPageSize());
+
+            result = USLOSS_MmuUnmap(0, page);
+            if (!result == USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: %d\n", result);
+            }
+
         /* Unblock waiting (faulting) process */
         MboxSend(faults[pid % MAXPROC].replyMbox, NULL, 0);
     }
