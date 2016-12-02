@@ -41,9 +41,9 @@ p1_switch(int old, int new)
         //USLOSS_Console("p1_switch(): The VM is initialized\n");
 
         // if old is a vm process
-        if (procTable[old].vm) {
+        if (procTable[old % MAXPROC].vm) {
             for(int page=0; page<vmStats.pages; page++){
-                if (procTable[old].pageTable[page].frame != -1) {
+                if (procTable[old % MAXPROC].pageTable[page].frame != -1) {
                     result = USLOSS_MmuUnmap(0, page);
                     if (result != USLOSS_MMU_OK) {
                         USLOSS_Console("p1_switch(old): "
@@ -54,18 +54,18 @@ p1_switch(int old, int new)
         }
 
         // if new is a vm process
-        if (procTable[new].vm) {
+        if (procTable[new % MAXPROC].vm) {
             for(int page=0; page<vmStats.pages; page++){
-                if (procTable[new].pageTable[page].frame != -1) {
+                if (procTable[new % MAXPROC].pageTable[page].frame != -1) {
                     result = USLOSS_MmuMap(0, page, 
-                        procTable[new].pageTable[page].frame, 
+                        procTable[new % MAXPROC].pageTable[page].frame, 
                         USLOSS_MMU_PROT_RW);
                     if(result != USLOSS_MMU_OK){
                         USLOSS_Console("p1_switch(new): USLOSS_MmuMap error: "
                                 "%d\n", result);
                     }
                     // TODO: figure out status of mapping
-                    USLOSS_MmuSetAccess(procTable[new].pageTable[page].frame, 
+                    USLOSS_MmuSetAccess(procTable[new % MAXPROC].pageTable[page].frame, 
                             3);
                 }
             }
