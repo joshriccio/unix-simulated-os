@@ -52,7 +52,7 @@ FTE *frameTable;
 int numPagers;
 int *pagerPids;
 int pagerMbox;
-int vmInitialized;
+int vmInitialized = 0;
 int vmStatSem;
 
 /*
@@ -217,7 +217,6 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
        procTable[i].pid = -1;
        procTable[i].vm = 0;
        procTable[i].numPages = pages;
-       procTable[i].pageTable = malloc(pages * sizeof(PTE));
 
        for (int page = 0; page < pages; page++) {
            procTable[i].pageTable[page].frame = -1;

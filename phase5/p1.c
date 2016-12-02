@@ -13,12 +13,21 @@
 extern int debugflag;
 extern int vmInitialized;
 extern Process procTable[MAXPROC];
+extern int vmStatSem;
+extern VmStats vmStats;
+extern int  sempReal(int semaphore);
+extern int  semvReal(int semaphore);
 
 void
 p1_fork(int pid)
 {
     if (DEBUG && debugflag)
         USLOSS_Console("p1_fork() called: pid = %d\n", pid);
+
+    if (vmInitialized){
+        int pages = procTable[pid % MAXPROC].numPages;
+        //procTable[pid % MAXPROC].pageTable = malloc(pages * sizeof(PTE));
+    }
 } /* p1_fork */
 
 
@@ -65,8 +74,8 @@ p1_switch(int old, int new)
                                 "%d\n", result);
                     }
                     // TODO: figure out status of mapping
-                    USLOSS_MmuSetAccess(procTable[new % MAXPROC].pageTable[page].frame, 
-                            3);
+                    USLOSS_MmuSetAccess(
+                            procTable[new % MAXPROC].pageTable[page].frame, 3);
                 }
             }
 
@@ -75,12 +84,36 @@ p1_switch(int old, int new)
 	    //Set access to RW, the scecond parameter is the access bits,
 	    //USLOSS_MMU_REF          1       /* Page has been referenced */
 	    //USLOSS_MMU_DIRTY        2       /* Page has been written */
+
+        sempReal(vmStatSem);
+        vmStats.switches++;
+        semvReal(vmStatSem);
     }
 } /* p1_switch */
 
 void
 p1_quit(int pid)
 {
+    int result; 
+
     if (DEBUG && debugflag)
         USLOSS_Console("p1_quit() called: pid = %d\n", pid);
+
+    if (vmInitialized && procTable[pid % MAXPROC].vm) {
+        for(int page=0; page<vmStats.pages; page++){
+            if (procTable[pid % MAXPROC].pageTable[page].frame != -1) {
+                result = USLOSS_MmuUnmap(0, page);
+                if (result != USLOSS_MMU_OK) {
+                    USLOSS_Console("p1_quit(): "
+                            "USLOSS_MmuUnmap Error: %d\n", result);
+                }
+                procTable[pid % MAXPROC].pageTable[page].frame = -1;
+
+                sempReal(vmStatSem);
+                vmStats.freeFrames++;
+                semvReal(vmStatSem);
+            }
+        }
+        free(procTable[pid % MAXPROC].pageTable);
+    }
 } /* p1_quit */
