@@ -47,7 +47,7 @@ typedef struct Process {
 typedef struct FaultMsg {
     int  pid;        // Process with the problem.
     void *addr;      // Address that caused the fault.
-    int  replyMbox;  // Mailbox to send reply.
+    int  replyMbox;  // Mailbox to send reply. 1 slot
     // Add more stuff here.
 } FaultMsg;
 

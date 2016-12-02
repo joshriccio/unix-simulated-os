@@ -218,10 +218,6 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
        procTable[i].vm = 0;
        procTable[i].numPages = pages;
 
-       for (int page = 0; page < pages; page++) {
-           procTable[i].pageTable[page].frame = -1;
-       }
-       
        faults[i].pid = -1;
        faults[i].replyMbox = MboxCreate(1, 0);
        faults[i].addr = NULL;
@@ -243,7 +239,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    pagerPids = malloc(pagers * sizeof(int));
    char buf[100];
    pagerMbox = MboxCreate(pagers, sizeof(int));
-   for (int i=0; i<frames; i++){
+   for (int i=0; i< pagers; i++){
       pagerPids[i] = fork1("pagerProcess", Pager, buf, USLOSS_MIN_STACK, 
               PAGER_PRIORITY);
    }
@@ -325,6 +321,7 @@ void vmDestroyReal(void){
 
    CheckMode();
    USLOSS_MmuDone();
+   vmInitialized = 0;
    /*
     * Kill the pagers here.
     */
@@ -372,8 +369,14 @@ void vmDestroyReal(void){
 static void FaultHandler(int  type, void *arg){
    int cause;
 
-   int offset = (int) (long) arg;
+    int offset = (int) (long) arg;
+    void * vmPlusOffset = vmRegion + offset;
 
+    /*USLOSS_Console("offset = %d\n", (int) (long) arg);
+    USLOSS_Console("page# = %d\n", page);
+    USLOSS_Console("vmRegion = %lp\n", vmRegion);*/ 
+    //USLOSS_Console("temp = %lp\n", temp);
+    
    assert(type == USLOSS_MMU_INT);
    cause = USLOSS_MmuGetCause();
    assert(cause == USLOSS_MMU_FAULT);
@@ -383,7 +386,6 @@ static void FaultHandler(int  type, void *arg){
    vmStats.faults++;
    semvReal(vmStatSem);
 
-   //int pid = getPID5(); //SEG FAULT
    int pid;
    getPID_real(&pid);
 
@@ -395,7 +397,7 @@ static void FaultHandler(int  type, void *arg){
     * reply.
     */
    faults[pid % MAXPROC].pid = pid;
-   faults[pid % MAXPROC].addr = vmRegion + offset;
+   faults[pid % MAXPROC].addr = vmPlusOffset;
 
    MboxSend(pagerMbox, &pid, sizeof(int));
 
@@ -456,8 +458,8 @@ static int Pager(char *buf){
         } else {
 
             /* find page number */
-            page = ((int)(long)(faults[pid % MAXPROC].addr - vmRegion)) 
-                / USLOSS_MmuPageSize();
+            page = (int)(long) ( (char *) faults[pid % MAXPROC].addr - 
+                    (char *) vmRegion) / USLOSS_MmuPageSize();
             
             /* update page table */
             procTable[pid].pageTable[page].state = INCORE;
@@ -469,7 +471,6 @@ static int Pager(char *buf){
             frameTable[freeFrame].page = page;
             frameTable[freeFrame].pid = pid;
         }
-        //USLOSS_Console("Pager(): before mapping\n");
 
         /* Load page into frame from disk or initialize frame */
         // if (page is on disk) {
@@ -478,17 +479,14 @@ static int Pager(char *buf){
             if (!result == USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n", result);
             }
-            //USLOSS_Console("Pager(): after mapping\n");
 
-            memset(faults[pid % MAXPROC].addr,
-                    0, USLOSS_MmuPageSize());
+            memset(faults[pid % MAXPROC].addr, 0, USLOSS_MmuPageSize());
 
             result = USLOSS_MmuUnmap(0, page);
             if (!result == USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: %d\n", result);
             }
             
-        //USLOSS_Console("Pager(): after unmapping\n");
 
         /* Unblock waiting (faulting) process */
         MboxSend(faults[pid % MAXPROC].replyMbox, NULL, 0);

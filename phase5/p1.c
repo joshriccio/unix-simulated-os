@@ -26,7 +26,11 @@ p1_fork(int pid)
 
     if (vmInitialized){
         int pages = procTable[pid % MAXPROC].numPages;
-        //procTable[pid % MAXPROC].pageTable = malloc(pages * sizeof(PTE));
+        procTable[pid % MAXPROC].pageTable = malloc(pages * sizeof(PTE));
+
+        for (int page = 0; page < pages; page++) {
+            procTable[pid % MAXPROC].pageTable[page].frame = -1;
+        }
     }
 } /* p1_fork */
 
@@ -40,7 +44,8 @@ p1_switch(int old, int new)
 {
     if (DEBUG && debugflag) {
         USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
-        USLOSS_Console("p1_switch(): new = %d, vm = %d\n", new, procTable[new].vm);
+        USLOSS_Console("p1_switch(): new = %d, vm = %d\n", new, 
+                procTable[new].vm);
     }
 
     int result;
