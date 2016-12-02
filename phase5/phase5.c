@@ -341,7 +341,6 @@ void vmDestroyReal(void){
    /* 
     * Print vm statistics.
     */
-   USLOSS_Console("vmStats:\n");
    PrintStats();
    /*USLOSS_Console("pages: %d\n", vmStats.pages);
    USLOSS_Console("frames: %d\n", vmStats.frames);
