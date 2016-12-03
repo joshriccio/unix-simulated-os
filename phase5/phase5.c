@@ -200,7 +200,9 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
         return ((void *)(long)-1);
     }
 
-    //TODO : mappings <= TAGS * pages 
+    if (mappings == pages) {
+        return ((void *)(long)-1);
+    }
 
    status = USLOSS_MmuInit(mappings, pages, frames);
    if (status != USLOSS_MMU_OK) {
@@ -209,6 +211,25 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    }
    
    vmInitialized = 1;
+
+   /*
+    * Zero out, then initialize, the vmStats structure
+    */
+   int sectorSize, sectorsInTrack, numTracksOnDisk;
+
+   diskSizeReal(1, &sectorSize, &sectorsInTrack, &numTracksOnDisk);
+
+   vmStats.pages = pages;
+   vmStats.frames = frames;
+   vmStats.diskBlocks = numTracksOnDisk;
+   vmStats.freeFrames = frames;
+   vmStats.freeDiskBlocks = numTracksOnDisk;
+   vmStats.faults = 0;
+   vmStats.switches = 0;
+   vmStats.new = 0;
+   vmStats.pageIns = 0;
+   vmStats.pageOuts = 0;
+   vmStats.replaced = 0;
 
    USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
 
@@ -234,6 +255,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
       frameTable[i].pid = -1;
       frameTable[i].page = -1;
    }   
+
    /*
     * Fork the pagers.
     */
@@ -245,26 +267,6 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
       pagerPids[i] = fork1("pagerProcess", Pager, buf, USLOSS_MIN_STACK, 
               PAGER_PRIORITY);
    }
-
-   /*
-    * Zero out, then initialize, the vmStats structure
-    */
-   int sectorSize, sectorsInTrack, numTracksOnDisk;
-
-   diskSizeReal(1, &sectorSize, &sectorsInTrack, &numTracksOnDisk);
-
-   memset((char *) &vmStats, 0, sizeof(VmStats));
-   vmStats.pages = pages;
-   vmStats.frames = frames;
-   vmStats.diskBlocks = numTracksOnDisk;
-   vmStats.freeFrames = frames;
-   vmStats.freeDiskBlocks = numTracksOnDisk;
-   vmStats.switches = 0;
-   vmStats.faults = 0;
-   vmStats.new = 0;
-   vmStats.pageIns = 0;
-   vmStats.pageOuts = 0;
-   vmStats.replaced = 0;
 
    vmRegion = USLOSS_MmuRegion(&numPagesInVmRegion);
    return vmRegion;
@@ -322,7 +324,6 @@ void vmDestroyReal(void){
 
    CheckMode();
    USLOSS_MmuDone();
-   vmInitialized = 0;
    /*
     * Kill the pagers here.
     */
@@ -340,8 +341,10 @@ void vmDestroyReal(void){
     */
    PrintStats();
 
-   //TODO: free memory, call mmuDone
+   //TODO: free memory 
+   //free framesTable and pager PID table
 
+   vmInitialized = 0;
 } /* vmDestroyReal */
 
 /*
@@ -398,7 +401,6 @@ static void FaultHandler(int  type, void *arg){
    MboxSend(pagerMbox, &pid, sizeof(int));
 
    MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
-   //USLOSS_Console("FaultHandler(): Done\n");
 } /* FaultHandler */
 
 /*
