@@ -51,7 +51,7 @@ p1_switch(int old, int new)
     int result;
 
     //Check if vmInit has been called
-    if(vmInitialized ){
+    if (vmInitialized) {
         //USLOSS_Console("p1_switch(): The VM is initialized\n");
 
         // if old is a vm process

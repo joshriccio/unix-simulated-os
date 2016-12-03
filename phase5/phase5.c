@@ -207,8 +207,10 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
       USLOSS_Console("vmInitReal: couldn't init MMU, status %d\n", status);
       abort();
    }
-   USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
+   
+   vmInitialized = 1;
 
+   USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
 
    /*
     * Initialize page tables, and fault mbox.
@@ -239,7 +241,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    pagerPids = malloc(pagers * sizeof(int));
    char buf[100];
    pagerMbox = MboxCreate(pagers, sizeof(int));
-   for (int i=0; i< pagers; i++){
+   for (int i = 0; i < numPagers; i++){
       pagerPids[i] = fork1("pagerProcess", Pager, buf, USLOSS_MIN_STACK, 
               PAGER_PRIORITY);
    }
@@ -265,7 +267,6 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    vmStats.replaced = 0;
 
    vmRegion = USLOSS_MmuRegion(&numPagesInVmRegion);
-   vmInitialized = 1;
    return vmRegion;
 } /* vmInitReal */
 
@@ -338,11 +339,6 @@ void vmDestroyReal(void){
     * Print vm statistics.
     */
    PrintStats();
-   /*USLOSS_Console("pages: %d\n", vmStats.pages);
-   USLOSS_Console("frames: %d\n", vmStats.frames);
-   USLOSS_Console("disk blocks: %d\n", vmStats.diskBlocks); //Changed from vmStats.blocks
-   */
-   /* and so on... */
 
    //TODO: free memory, call mmuDone
 
