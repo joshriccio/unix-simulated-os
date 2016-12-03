@@ -54,6 +54,8 @@ int *pagerPids;
 int pagerMbox;
 int vmInitialized = 0;
 int vmStatSem;
+int clockHand;
+int clockSem;
 
 /*
  *----------------------------------------------------------------------
@@ -83,7 +85,6 @@ int start4(char *arg){
     systemCallVec[SYS_MBOXCONDSEND]    = mbox_condsend;
     systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
     
-    SemCreate(1, &vmStatSem);  // MUTEX for vmStats
 
     /* user-process access to VM functions */
     systemCallVec[SYS_VMINIT]    = vmInit;
@@ -229,6 +230,8 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
    vmStats.pageOuts = 0;
    vmStats.replaced = 0;
 
+    vmStatSem = semcreateReal(1);  // MUTEX for vmStats
+
    USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
 
    /*
@@ -255,6 +258,10 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
       frameTable[i].pid = -1;
       frameTable[i].page = -1;
    }   
+
+   /* initialize clock hand for clock algorithm */
+   clockHand = 0;
+   clockSem = semcreateReal(1);
 
    /*
     * Fork the pagers.
@@ -452,7 +459,7 @@ static int Pager(char *buf){
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
         if (freeFrame == -1) {
-            //No frame was found
+
         } else {
 
             /* find page number */
