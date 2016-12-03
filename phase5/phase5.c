@@ -467,7 +467,6 @@ static int Pager(char *buf){
 
                 sempReal(vmStatSem);
                 vmStats.freeFrames--;
-                vmStats.new++;
                 semvReal(vmStatSem);
 
                 break;
@@ -477,9 +476,11 @@ static int Pager(char *buf){
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
         if (freeFrame == -1) {
+            //USLOSS_Console("No Free Frame\n");
             int found = 0;
-            sempReal(clockSem);
+            //sempReal(clockSem);
             for (int i = 0; i < vmStats.frames; i++) {
+                //USLOSS_Console("frame = %d\n", i);
                 if (frameTable[clockHand].ref == UNREFERENCED) {
                     if (frameTable[clockHand].dirty == CLEAN) {
                         freeFrame = clockHand;
@@ -495,6 +496,7 @@ static int Pager(char *buf){
                     clockHand = 0;
                 }
             }
+            //USLOSS_Console("Ref/Clean Not Found\n");
             if (!found) {
                 found = 0;
                 for (int i = 0; i < vmStats.frames; i++) {
@@ -539,7 +541,7 @@ static int Pager(char *buf){
                         }
 
                         // release clockSem before writing
-                        semvReal(clockSem);
+                        //semvReal(clockSem);
                         diskWriteReal(1, diskTable[i].track, 
                                 diskTable[i].sector, USLOSS_MmuPageSize() / 
                                 USLOSS_DISK_SECTOR_SIZE, buffer);
@@ -556,6 +558,7 @@ static int Pager(char *buf){
                 }
             }
         }
+
 
         /* find page number of fault*/
         page = (int)(long) ( (char *) faults[pid % MAXPROC].addr - 
@@ -575,7 +578,7 @@ static int Pager(char *buf){
         /* Load page into frame from disk or initialize frame */
          if (procTable[pid].pageTable[page].diskTableIndex != -1) {
              // read from disk
-         } else {
+         } else if (procTable[pid].pageTable[page].accessed == 0) {
             int result = USLOSS_MmuMap(0, page, freeFrame, USLOSS_MMU_PROT_RW);
             if (!result == USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n", result);
@@ -583,10 +586,23 @@ static int Pager(char *buf){
 
             memset(faults[pid % MAXPROC].addr, 0, USLOSS_MmuPageSize());
 
+            frameTable[freeFrame].dirty = CLEAN; 
+            result = USLOSS_MmuSetAccess(freeFrame, REFERENCED);
+            if (!result == USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuSetAccess Error: %d\n", 
+                        result);
+            }
+
             result = USLOSS_MmuUnmap(0, page);
             if (!result == USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: %d\n", result);
             }
+
+            procTable[pid].pageTable[page].accessed = 1;
+
+            sempReal(vmStatSem);
+            vmStats.new++;
+            semvReal(vmStatSem);
          }
 
         /* Unblock waiting (faulting) process */

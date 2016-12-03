@@ -25,6 +25,7 @@
  */
 typedef struct PTE {
     int  state;      // constant of a page
+    int accessed;
     int  frame;      // Frame that stores the page (if any). -1 if none.
     int pageNum;
     int  diskTableIndex;  // -1 if none, index into disk table array.

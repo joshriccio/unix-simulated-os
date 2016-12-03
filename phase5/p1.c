@@ -31,6 +31,7 @@ p1_fork(int pid)
 
         for (int page = 0; page < pages; page++) {
             procTable[pid % MAXPROC].pageTable[page].frame = -1;
+            procTable[pid % MAXPROC].pageTable[page].accessed = 0;
             procTable[pid % MAXPROC].pageTable[page].state = UNMAPPED;
             procTable[pid % MAXPROC].pageTable[page].diskTableIndex = -1;
         }
@@ -77,6 +78,7 @@ p1_switch(int old, int new)
             int frame;
             for(int page = 0; page < vmStats.pages; page++){
                 frame = procTable[new % MAXPROC].pageTable[page].frame;
+
                 if (frame != -1) {
                     //USLOSS_Console("p1_switch: mapping new\n");
                     result = USLOSS_MmuMap(0, page, frame, USLOSS_MMU_PROT_RW);
@@ -84,7 +86,6 @@ p1_switch(int old, int new)
                         USLOSS_Console("p1_switch(new): USLOSS_MmuMap error: "
                                 "%d\n", result);
                     }
-                    //USLOSS_MmuSetAccess(frame, 3);
                     procTable[new % MAXPROC].pageTable[page].state = MAPPED;
                 }
             }
