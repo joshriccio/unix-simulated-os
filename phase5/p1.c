@@ -32,6 +32,7 @@ p1_fork(int pid)
         for (int page = 0; page < pages; page++) {
             procTable[pid % MAXPROC].pageTable[page].frame = -1;
             procTable[pid % MAXPROC].pageTable[page].state = UNMAPPED;
+            procTable[pid % MAXPROC].pageTable[page].diskTableIndex = -1;
         }
     }
 } /* p1_fork */
