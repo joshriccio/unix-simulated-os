@@ -59,13 +59,14 @@ typedef struct FTE {
     int ref;        // constant of a frame
     int dirty;      // constant of a frame
     int pid;        // pid of process using this frame 
-    int page;       // Page mapped to frame, -1 if none.
+    PTE *page;       // Page mapped to frame, -1 if none.
 } FTE;
 
 /*
  * Disk table entry.
  */
 typedef struct DTE {
+    int state;     // USED 1 or UNUSED 0
     int pid;
     int page;
     int track;

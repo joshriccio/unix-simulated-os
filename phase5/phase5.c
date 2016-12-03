@@ -49,6 +49,7 @@ FaultMsg faults[MAXPROC]; /* Note that a process can have only
 VmStats  vmStats;
 void *vmRegion;
 FTE *frameTable;
+DTE *diskTable;
 int numPagers;
 int *pagerPids;
 int pagerMbox;
@@ -234,6 +235,20 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
 
    USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
 
+   /* initialize disk table */
+   diskTable = malloc(sectorsInTrack * numTracksOnDisk * sizeof(DTE));
+
+   int trackNum = 0;
+   for (int i = 0; i < sectorsInTrack * numTracksOnDisk; i += 2) {
+       diskTable[i].track = trackNum;
+       diskTable[i + 1].track = trackNum++;
+       diskTable[i].sector = 0;
+       diskTable[i + 1].sector = sectorsInTrack / 2;
+       diskTable[i].state = UNUSED;
+       diskTable[i + 1].state = UNUSED;
+   }
+
+
    /*
     * Initialize page tables, and fault mbox.
     */
@@ -256,7 +271,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
       frameTable[i].ref = UNREFERENCED;
       frameTable[i].dirty = CLEAN;
       frameTable[i].pid = -1;
-      frameTable[i].page = -1;
+      frameTable[i].page = NULL;
    }   
 
    /* initialize clock hand for clock algorithm */
@@ -459,6 +474,44 @@ static int Pager(char *buf){
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
         if (freeFrame == -1) {
+            int found = 0;
+            for (int i = 0; i < vmStats.frames; i++) {
+                if (frameTable[clockHand].ref == UNREFERENCED) {
+                    if (frameTable[clockHand].dirty == CLEAN) {
+                        freeFrame = clockHand;
+                        frameTable[clockHand].page->frame = -1;
+                        found = 1;
+                        break;
+                    }
+                } else {
+                    frameTable[clockHand].ref = UNREFERENCED;
+                }
+                clockHand++;
+                if (clockHand == vmStats.frames) {
+                    clockHand = 0;
+                }
+            }
+            if (!found) {
+                found = 0;
+                for (int i = 0; i < vmStats.frames; i++) {
+                    if (frameTable[clockHand].ref == UNREFERENCED) {
+                        if (frameTable[clockHand].dirty == CLEAN) {
+                            freeFrame = clockHand;
+                            frameTable[clockHand].page->frame = -1;
+                            found = 1;
+                            break;
+                        }
+                    }
+                    clockHand++;
+                    if (clockHand == vmStats.frames) {
+                        clockHand = 0;
+                    }
+                }
+            }
+            if (!found) {
+                //write to disk
+            }
+
 
         } else {
 
@@ -473,7 +526,7 @@ static int Pager(char *buf){
             frameTable[freeFrame].state = USED; 
             frameTable[freeFrame].ref = REFERENCED; 
             frameTable[freeFrame].dirty = DIRTY; 
-            frameTable[freeFrame].page = page;
+            frameTable[freeFrame].page = &procTable[pid].pageTable[page];
             frameTable[freeFrame].pid = pid;
         }
 
