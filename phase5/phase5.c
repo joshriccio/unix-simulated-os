@@ -83,7 +83,6 @@ int start4(char *arg){
     systemCallVec[SYS_MBOXCONDSEND]    = mbox_condsend;
     systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
     
-    // ... more stuff goes here ...
     SemCreate(1, &vmStatSem);  // MUTEX for vmStats
 
     /* user-process access to VM functions */
@@ -161,7 +160,6 @@ static void vmInit(systemArgs *args) {
  *
  *----------------------------------------------------------------------
  */
-
 static void vmDestroy(systemArgs *sysargsPtr){
    CheckMode();
    vmDestroyReal();
@@ -200,7 +198,7 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
         return ((void *)(long)-1);
     }
 
-    if (mappings == pages) {
+    if (mappings != pages) {
         return ((void *)(long)-1);
     }
 
@@ -250,8 +248,10 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
     * Initialize frame tables.
     */
    frameTable = malloc(frames * sizeof(FTE));
-   for (int i=0; i<frames; i++){
+   for (int i = 0; i < frames; i++) {
       frameTable[i].state = UNUSED;
+      frameTable[i].ref = UNREFERENCED;
+      frameTable[i].dirty = CLEAN;
       frameTable[i].pid = -1;
       frameTable[i].page = -1;
    }   
@@ -344,7 +344,7 @@ void vmDestroyReal(void){
    //TODO: free memory 
    //free framesTable and pager PID table
 
-   vmInitialized = 0;
+   vmInitialized = 0;  //TODO: might be after MmuDone
 } /* vmDestroyReal */
 
 /*
@@ -460,12 +460,12 @@ static int Pager(char *buf){
                     (char *) vmRegion) / USLOSS_MmuPageSize();
             
             /* update page table */
-            procTable[pid].pageTable[page].state = INCORE;
             procTable[pid].pageTable[page].frame = freeFrame;
             
             /* update frame table */
-            frameTable[freeFrame].state = REFERENCED; 
-            // TODO: mark as dirty?
+            frameTable[freeFrame].state = USED; 
+            frameTable[freeFrame].ref = REFERENCED; 
+            frameTable[freeFrame].dirty = DIRTY; 
             frameTable[freeFrame].page = page;
             frameTable[freeFrame].pid = pid;
         }
