@@ -121,6 +121,12 @@ p1_quit(int pid)
                 frameTable[frame].ref = UNREFERENCED;
                 frameTable[frame].dirty = CLEAN;
 
+                result = USLOSS_MmuSetAccess(frame, UNREFERENCED + CLEAN);
+                if (result != USLOSS_MMU_OK) {
+                    USLOSS_Console("p1_quit: USLOSS_MmuSetAccess "
+                        "Error: %d\n", result);
+                }  
+
                 sempReal(vmStatSem);
                 vmStats.freeFrames++;
                 semvReal(vmStatSem);

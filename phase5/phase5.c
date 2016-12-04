@@ -59,6 +59,7 @@ int vmInitialized = 0;
 int vmStatSem;
 int clockHand;
 int clockSem;
+int frameSem;
 
 /*
  *----------------------------------------------------------------------
@@ -276,6 +277,8 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
       frameTable[i].pid = -1;
       frameTable[i].page = NULL;
    }   
+   
+   frameSem = semcreateReal(1);
 
    /* initialize clock hand for clock algorithm */
    clockHand = 0;
@@ -454,8 +457,20 @@ static int Pager(char *buf){
         if (pid == -1 ) {
             break;
         }
-        
-        //USLOSS_Console("Pager(): running/n");
+
+        /* update frameTable to match MMU */
+        int accessBit;
+        for (int i = 0; i < vmStats.frames; i++) {
+            //TODO: sempReal(frameSem);
+            int result = USLOSS_MmuGetAccess(i, &accessBit);
+            if (result != USLOSS_MMU_OK) {
+                USLOSS_Console("Pager_accessBit: USLOSS_MmuGetAccess Error: "
+                        "%d\n", result);
+            }
+            frameTable[i].ref = accessBit & REFERENCED;
+            frameTable[i].dirty = accessBit & DIRTY;
+            //semvReal(frameSem);
+        }
 
         int freeFrame = -1;
         int page = -1;
@@ -476,11 +491,9 @@ static int Pager(char *buf){
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
         if (freeFrame == -1) {
-            //USLOSS_Console("No Free Frame\n");
             int found = 0;
             //sempReal(clockSem);
             for (int i = 0; i < vmStats.frames; i++) {
-                //USLOSS_Console("frame = %d\n", i);
                 if (frameTable[clockHand].ref == UNREFERENCED) {
                     if (frameTable[clockHand].dirty == CLEAN) {
                         freeFrame = clockHand;
@@ -490,13 +503,17 @@ static int Pager(char *buf){
                     }
                 } else {
                     frameTable[clockHand].ref = UNREFERENCED;
+                    USLOSS_MmuSetAccess(clockHand, 
+                            frameTable[clockHand].dirty);
                 }
                 clockHand++;
                 if (clockHand == vmStats.frames) {
                     clockHand = 0;
                 }
             }
-            //USLOSS_Console("Ref/Clean Not Found\n");
+
+            /* No unreferenced and clean frames on first pass, this is second
+             * pass */
             if (!found) {
                 found = 0;
                 for (int i = 0; i < vmStats.frames; i++) {
@@ -514,6 +531,7 @@ static int Pager(char *buf){
                     }
                 }
             }
+
             if (!found) {
                 freeFrame = clockHand;
                 page = frameTable[freeFrame].page->pageNum;
@@ -527,7 +545,7 @@ static int Pager(char *buf){
                         /* save frame to buffer */
                         int result = USLOSS_MmuMap(0, page, freeFrame, 
                                 USLOSS_MMU_PROT_RW);
-                        if (!result == USLOSS_MMU_OK) {
+                        if (result != USLOSS_MMU_OK) {
                             USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n"
                                     , result);
                         }
@@ -535,7 +553,7 @@ static int Pager(char *buf){
                         memcpy(buffer, addr, USLOSS_MmuPageSize());
 
                         result = USLOSS_MmuUnmap(0, page);
-                        if (!result == USLOSS_MMU_OK) {
+                        if (result != USLOSS_MMU_OK) {
                             USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: "
                                     "%d\n", result);
                         }
@@ -546,6 +564,11 @@ static int Pager(char *buf){
                                 diskTable[i].sector, USLOSS_MmuPageSize() / 
                                 USLOSS_DISK_SECTOR_SIZE, buffer);
 
+                        frameTable[clockHand].ref = UNREFERENCED;
+                        frameTable[clockHand].dirty = CLEAN;
+                        USLOSS_MmuSetAccess(clockHand, 
+                                frameTable[clockHand].dirty);
+
                         /* update disk table and page table state */
                         diskTable[i].state = USED;
                         diskTable[i].pid = frameTable[freeFrame].pid;
@@ -553,6 +576,14 @@ static int Pager(char *buf){
                         frameTable[freeFrame].page->diskTableIndex = i;
                         frameTable[freeFrame].page->frame = -1;
 
+                        sempReal(vmStatSem);
+                        vmStats.pageOuts++;
+                        semvReal(vmStatSem);
+
+                        clockHand++;
+                        if (clockHand == vmStats.frames) {
+                            clockHand = 0;
+                        }
                         break;
                     }
                 }
@@ -570,31 +601,69 @@ static int Pager(char *buf){
         
         /* update frame table */
         frameTable[freeFrame].state = USED; 
-        frameTable[freeFrame].ref = REFERENCED; 
-        //frameTable[freeFrame].dirty = DIRTY; 
         frameTable[freeFrame].page = &procTable[pid].pageTable[page];
         frameTable[freeFrame].pid = pid;
 
         /* Load page into frame from disk or initialize frame */
-         if (procTable[pid].pageTable[page].diskTableIndex != -1) {
-             // read from disk
+         if (procTable[pid % MAXPROC].pageTable[page].diskTableIndex != -1) {
+            int i = procTable[pid].pageTable[page].diskTableIndex;
+
+            // read from disk
+            char buffer[USLOSS_MmuPageSize()];
+            //TODO:USLOSS_Console("Pager(): Reading page from disk\n");
+            diskReadReal(1, diskTable[i].track,
+                             diskTable[i].sector, USLOSS_MmuPageSize() /
+                             USLOSS_DISK_SECTOR_SIZE, buffer);
+
+            /* save buffer to frame */
+            int result = USLOSS_MmuMap(0, page, freeFrame,
+                USLOSS_MMU_PROT_RW);
+            if (result != USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n"
+                    , result);
+            }
+
+            memcpy(faults[pid % MAXPROC].addr, buffer, USLOSS_MmuPageSize());
+            
+            result = USLOSS_MmuSetAccess(freeFrame, UNREFERENCED + CLEAN);
+            frameTable[freeFrame].ref = UNREFERENCED;
+            frameTable[freeFrame].dirty = CLEAN;
+
+            procTable[pid % MAXPROC].pageTable[page].frame = freeFrame;
+
+            if (result != USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuSetAccess Error: %d\n",
+                        result);
+            }
+
+            result = USLOSS_MmuUnmap(0, page);
+            if (result != USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: "
+                    "%d\n", result);
+            }
+            
+            sempReal(vmStatSem);
+            vmStats.pageIns++;
+            semvReal(vmStatSem);
          } else if (procTable[pid].pageTable[page].accessed == 0) {
             int result = USLOSS_MmuMap(0, page, freeFrame, USLOSS_MMU_PROT_RW);
-            if (!result == USLOSS_MMU_OK) {
+            if (result != USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n", result);
             }
 
             memset(faults[pid % MAXPROC].addr, 0, USLOSS_MmuPageSize());
 
+            frameTable[freeFrame].ref = UNREFERENCED; 
             frameTable[freeFrame].dirty = CLEAN; 
-            result = USLOSS_MmuSetAccess(freeFrame, REFERENCED);
-            if (!result == USLOSS_MMU_OK) {
+
+            result = USLOSS_MmuSetAccess(freeFrame, UNREFERENCED + CLEAN);
+            if (result != USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuSetAccess Error: %d\n", 
                         result);
             }
 
             result = USLOSS_MmuUnmap(0, page);
-            if (!result == USLOSS_MMU_OK) {
+            if (result != USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: %d\n", result);
             }
 
