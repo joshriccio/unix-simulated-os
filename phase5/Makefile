@@ -30,7 +30,7 @@ endif
 LDFLAGS += -L. -L./usloss/lib
 
 TESTDIR = testcases
-TESTS = simple1 simple2 simple3 simple4 simple5
+TESTS = simple1 simple2 simple3 simple4 simple5 simple6 simple7 simple8
 #$(TESTDIR)/Tconsole.o 
 LIBS = -l$(PHASE4LIB) -l$(PHASE3LIB) -l$(PHASE2LIB) \
        -l$(PHASE1LIB) -lusloss -l$(PHASE1LIB) -l$(PHASE2LIB) \

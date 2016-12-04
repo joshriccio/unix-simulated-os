@@ -8,25 +8,27 @@
  */
 #define TAG 0
 
-/*
- * Different states for a page.
- */
-#define UNUSED 500
-#define INCORE 501
-#define REFERENCED 502
-#define CLEAN 503
-#define DIRTY 504
-/* You'll probably want more states */
+/* constants for a page */
+#define UNMAPPED 0
+#define MAPPED 1
 
+/* constants for a frame */
+#define UNUSED 0
+#define USED 1
+#define UNREFERENCED 0
+#define REFERENCED USLOSS_MMU_REF
+#define CLEAN 0
+#define DIRTY USLOSS_MMU_DIRTY
 
 /*
  * Page table entry.
  */
 typedef struct PTE {
-    int  state;      // See above.
+    int  state;      // constant of a page
+    int accessed;
     int  frame;      // Frame that stores the page (if any). -1 if none.
-    int  diskBlock;  // Disk block that stores the page (if any). -1 if none.
-    // Add more stuff here
+    int pageNum;
+    int  diskTableIndex;  // -1 if none, index into disk table array.
 } PTE;
 
 /*
@@ -55,10 +57,21 @@ typedef struct FaultMsg {
  * Frame table entry.
  */
 typedef struct FTE {
-    int state;      // See above.
+    int state;      // constant of a frame
+    int ref;        // constant of a frame
+    int dirty;      // constant of a frame
     int pid;        // pid of process using this frame 
-    int page;       // Page mapped to frame, -1 if none.
-    // Add more stuff here
+    PTE *page;       // Page mapped to frame, -1 if none.
 } FTE;
 
+/*
+ * Disk table entry.
+ */
+typedef struct DTE {
+    int state;     // USED 1 or UNUSED 0
+    int pid;
+    int page;
+    int track;
+    int sector;
+} DTE;
 #define CheckMode() assert(USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE)
