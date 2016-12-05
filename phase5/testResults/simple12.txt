@@ -1,0 +1,294 @@
+start5(): Running:    simple10
+start5(): Pagers:     3
+          Mappings:   6
+          Pages:      6
+          Frames:     5
+          Children:   5
+          Iterations: 3
+          Priority:   5
+start5(): after call to VmInit, status = 0
+
+
+Child(13): starting
+
+Child(13): iteration 0
+Child(13): writing one location to each of 6 pages
+
+Child(14): starting
+
+Child(14): iteration 0
+Child(14): writing one location to each of 6 pages
+
+Child(15): starting
+
+Child(15): iteration 0
+Child(15): writing one location to each of 6 pages
+
+Child(16): starting
+
+Child(16): iteration 0
+Child(16): writing one location to each of 6 pages
+
+Child(17): starting
+
+Child(17): iteration 0
+Child(17): writing one location to each of 6 pages
+Child(13): wrote 13 to page 0
+Child(13): wrote 13 to page 1
+Child(13): wrote 13 to page 2
+Child(15): wrote 15 to page 0
+Child(13): wrote 13 to page 3
+Child(17): wrote 17 to page 0
+Child(13): wrote 13 to page 4
+Child(16): wrote 16 to page 0
+Child(13): wrote 13 to page 5
+Child(13): reading one location from each of 6 pages
+Child(17): wrote 17 to page 1
+Child(17): wrote 17 to page 2
+Child(15): wrote 15 to page 1
+Child(17): wrote 17 to page 3
+Child(13): page 0, value 13
+Child(17): wrote 17 to page 4
+Child(15): wrote 15 to page 2
+Child(16): wrote 16 to page 1
+Child(14): wrote 14 to page 0
+Child(16): wrote 16 to page 2
+Child(17): wrote 17 to page 5
+Child(17): reading one location from each of 6 pages
+Child(14): wrote 14 to page 1
+Child(16): wrote 16 to page 3
+Child(14): wrote 14 to page 2
+Child(16): wrote 16 to page 4
+Child(15): wrote 15 to page 3
+Child(17): page 0, value 17
+Child(15): wrote 15 to page 4
+Child(16): wrote 16 to page 5
+Child(16): reading one location from each of 6 pages
+Child(15): wrote 15 to page 5
+Child(15): reading one location from each of 6 pages
+Child(13): page 1, value 13
+Child(14): wrote 14 to page 3
+Child(15): page 0, value 15
+Child(14): wrote 14 to page 4
+Child(16): page 0, value 16
+Child(14): wrote 14 to page 5
+Child(14): reading one location from each of 6 pages
+Child(13): page 2, value 13
+Child(16): page 1, value 16
+Child(14): page 0, value 14
+Child(16): page 2, value 16
+Child(14): page 1, value 14
+Child(15): page 1, value 15
+Child(16): page 3, value 16
+Child(17): page 1, value 17
+Child(15): page 2, value 15
+Child(16): page 4, value 16
+Child(17): page 2, value 17
+Child(15): page 3, value 15
+Child(16): page 5, value 16
+Child(16): vmStats.faults = 91
+
+Child(16): iteration 1
+Child(16): writing one location to each of 6 pages
+Child(15): page 4, value 15
+Child(13): page 3, value 13
+Child(14): page 2, value 14
+Child(13): page 4, value 13
+Child(17): page 3, value 17
+Child(15): page 5, value 15
+Child(15): vmStats.faults = 105
+
+Child(15): iteration 1
+Child(15): writing one location to each of 6 pages
+Child(16): wrote 16 to page 0
+Child(13): page 5, value 13
+Child(13): vmStats.faults = 107
+
+Child(13): iteration 1
+Child(13): writing one location to each of 6 pages
+Child(17): page 4, value 17
+Child(14): page 3, value 14
+Child(15): wrote 15 to page 0
+Child(17): page 5, value 17
+Child(17): vmStats.faults = 111
+
+Child(17): iteration 1
+Child(17): writing one location to each of 6 pages
+Child(13): wrote 13 to page 0
+Child(14): page 4, value 14
+Child(17): wrote 17 to page 0
+Child(13): wrote 13 to page 1
+Child(17): wrote 17 to page 1
+Child(14): page 5, value 14
+Child(14): vmStats.faults = 120
+
+Child(14): iteration 1
+Child(14): writing one location to each of 6 pages
+Child(16): wrote 16 to page 1
+Child(14): wrote 14 to page 0
+Child(16): wrote 16 to page 2
+Child(14): wrote 14 to page 1
+Child(13): wrote 13 to page 2
+Child(15): wrote 15 to page 1
+Child(13): wrote 13 to page 3
+Child(15): wrote 15 to page 2
+Child(13): wrote 13 to page 4
+Child(17): wrote 17 to page 2
+Child(13): wrote 13 to page 5
+Child(13): reading one location from each of 6 pages
+Child(15): wrote 15 to page 3
+Child(14): wrote 14 to page 2
+Child(16): wrote 16 to page 3
+Child(14): wrote 14 to page 3
+Child(17): wrote 17 to page 3
+Child(14): wrote 14 to page 4
+Child(17): wrote 17 to page 4
+Child(14): wrote 14 to page 5
+Child(14): reading one location from each of 6 pages
+Child(16): wrote 16 to page 4
+Child(14): page 0, value 14
+Child(17): wrote 17 to page 5
+Child(17): reading one location from each of 6 pages
+Child(14): page 1, value 14
+Child(16): wrote 16 to page 5
+Child(16): reading one location from each of 6 pages
+Child(14): page 2, value 14
+Child(15): wrote 15 to page 4
+Child(14): page 3, value 14
+Child(15): wrote 15 to page 5
+Child(15): reading one location from each of 6 pages
+Child(14): page 4, value 14
+Child(15): page 0, value 15
+Child(14): page 5, value 14
+Child(14): vmStats.faults = 177
+
+Child(14): iteration 2
+Child(14): writing one location to each of 6 pages
+Child(13): page 0, value 13
+Child(15): page 1, value 15
+Child(14): wrote 14 to page 0
+Child(15): page 2, value 15
+Child(14): wrote 14 to page 1
+Child(14): wrote 14 to page 2
+Child(15): page 3, value 15
+Child(17): page 0, value 17
+Child(15): page 4, value 15
+Child(17): page 1, value 17
+Child(14): wrote 14 to page 3
+Child(16): page 0, value 16
+Child(15): page 5, value 15
+Child(15): vmStats.faults = 203
+
+Child(15): iteration 2
+Child(15): writing one location to each of 6 pages
+Child(13): page 1, value 13
+Child(17): page 2, value 17
+Child(14): wrote 14 to page 4
+Child(15): wrote 15 to page 0
+Child(13): page 2, value 13
+Child(14): wrote 14 to page 5
+Child(14): reading one location from each of 6 pages
+Child(17): page 3, value 17
+Child(14): page 0, value 14
+Child(17): page 4, value 17
+Child(14): page 1, value 14
+Child(17): page 5, value 17
+Child(17): vmStats.faults = 225
+
+Child(17): iteration 2
+Child(17): writing one location to each of 6 pages
+Child(14): page 2, value 14
+Child(14): page 3, value 14
+Child(17): wrote 17 to page 0
+Child(14): page 4, value 14
+Child(13): page 3, value 13
+Child(14): page 5, value 14
+Child(14): vmStats.faults = 239
+
+Child(13): page 4, value 13
+Child(17): wrote 17 to page 1
+Child(15): wrote 15 to page 1
+Child(16): page 1, value 16
+Child(16): page 2, value 16
+Child(13): page 5, value 13
+Child(13): vmStats.faults = 250
+
+Child(13): iteration 2
+Child(13): writing one location to each of 6 pages
+Child(13): wrote 13 to page 0
+Child(17): wrote 17 to page 2
+Child(17): wrote 17 to page 3
+Child(15): wrote 15 to page 2
+Child(15): wrote 15 to page 3
+Child(13): wrote 13 to page 1
+Child(13): wrote 13 to page 2
+Child(17): wrote 17 to page 4
+Child(17): wrote 17 to page 5
+Child(17): reading one location from each of 6 pages
+Child(15): wrote 15 to page 4
+Child(15): wrote 15 to page 5
+Child(15): reading one location from each of 6 pages
+Child(17): page 0, value 17
+Child(17): page 1, value 17
+Child(16): page 3, value 16
+Child(17): page 2, value 17
+Child(16): page 4, value 16
+Child(17): page 3, value 17
+Child(16): page 5, value 16
+Child(16): vmStats.faults = 285
+
+Child(16): iteration 2
+Child(16): writing one location to each of 6 pages
+Child(16): wrote 16 to page 0
+Child(15): page 0, value 15
+Child(16): wrote 16 to page 1
+Child(13): wrote 13 to page 3
+Child(15): page 1, value 15
+Child(17): page 4, value 17
+Child(16): wrote 16 to page 2
+Child(17): page 5, value 17
+Child(17): vmStats.faults = 305
+
+Child(13): wrote 13 to page 4
+Child(15): page 2, value 15
+Child(16): wrote 16 to page 3
+Child(13): wrote 13 to page 5
+Child(13): reading one location from each of 6 pages
+Child(13): page 0, value 13
+Child(15): page 3, value 15
+Child(16): wrote 16 to page 4
+Child(13): page 1, value 13
+Child(16): wrote 16 to page 5
+Child(16): reading one location from each of 6 pages
+Child(13): page 2, value 13
+Child(15): page 4, value 15
+Child(13): page 3, value 13
+Child(16): page 0, value 16
+Child(13): page 4, value 13
+Child(16): page 1, value 16
+Child(15): page 5, value 15
+Child(15): vmStats.faults = 320
+
+Child(13): page 5, value 13
+Child(13): vmStats.faults = 320
+
+Child(16): page 2, value 16
+Child(16): page 3, value 16
+Child(16): page 4, value 16
+Child(16): page 5, value 16
+Child(16): vmStats.faults = 323
+
+start5(): done
+VmStats
+pages:          6
+frames:         5
+diskBlocks:     64
+freeFrames:     5
+freeDiskBlocks: 34
+switches:       9096
+faults:         323
+new:            233
+pageIns:        273
+pageOuts:       90
+replaced:       0
+All processes completed.

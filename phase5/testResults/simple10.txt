@@ -1,0 +1,56 @@
+start5(): Running:    simple10
+start5(): Pagers:     2
+          Mappings:   4
+          Pages:      4
+          Frames:     4
+          Children:   2
+          Iterations: 1
+          Priority:   5
+start5(): after call to VmInit, status = 0
+
+
+Child(12): starting
+
+Child(12): iteration 0
+Child(12): writing one location to each of 4 pages
+
+Child(13): starting
+
+Child(13): iteration 0
+Child(13): writing one location to each of 4 pages
+Child(12): wrote 12 to page 0
+Child(13): wrote 13 to page 0
+Child(12): wrote 12 to page 1
+Child(12): wrote 12 to page 2
+Child(13): wrote 13 to page 1
+Child(12): wrote 12 to page 3
+Child(12): reading one location from each of 4 pages
+Child(13): wrote 13 to page 2
+Child(13): wrote 13 to page 3
+Child(13): reading one location from each of 4 pages
+Child(12): page 0, value 12
+Child(13): page 0, value 13
+Child(12): page 1, value 12
+Child(13): page 1, value 13
+Child(13): page 2, value 13
+Child(12): page 2, value 12
+Child(13): page 3, value 13
+Child(13): vmStats.faults = 17
+
+Child(12): page 3, value 12
+Child(12): vmStats.faults = 17
+
+start5(): done
+VmStats
+pages:          4
+frames:         4
+diskBlocks:     64
+freeFrames:     4
+freeDiskBlocks: 56
+switches:       427
+faults:         17
+new:            9
+pageIns:        8
+pageOuts:       8
+replaced:       0
+All processes completed.

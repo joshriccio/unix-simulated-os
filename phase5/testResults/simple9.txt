@@ -1,0 +1,132 @@
+start5(): Running:    simple8
+start5(): Pagers:     1
+          Mappings:   4
+          Pages:      4
+          Frames:     3
+          Children:   2
+          Iterations: 3
+          Priority:   5
+start5(): after call to VmInit, status = 0
+
+
+Child(11): starting
+
+Child(11): iteration 0
+Child(11): writing one location to each of 4 pages
+
+Child(12): starting
+
+Child(12): iteration 0
+Child(12): writing one location to each of 4 pages
+Child(11): wrote 11 to page 0
+Child(11): page 0, value 11
+Child(12): wrote 12 to page 0
+Child(12): page 0, value 12
+Child(12): wrote 12 to page 1
+Child(12): page 1, value 12
+Child(11): wrote 11 to page 1
+Child(11): page 1, value 11
+Child(11): wrote 11 to page 2
+Child(11): page 2, value 11
+Child(12): wrote 12 to page 2
+Child(12): page 2, value 12
+Child(12): wrote 12 to page 3
+Child(12): page 3, value 12
+Child(12): reading one location from each of 4 pages
+Child(11): wrote 11 to page 3
+Child(11): page 3, value 11
+Child(11): reading one location from each of 4 pages
+Child(11): page 0, value 11
+Child(12): page 0, value 12
+Child(12): page 1, value 12
+Child(11): page 1, value 11
+Child(11): page 2, value 11
+Child(12): page 2, value 12
+Child(12): page 3, value 12
+Child(12): vmStats.faults = 23
+
+Child(12): iteration 1
+Child(12): writing one location to each of 4 pages
+Child(11): page 3, value 11
+Child(11): vmStats.faults = 24
+
+Child(11): iteration 1
+Child(11): writing one location to each of 4 pages
+Child(11): wrote 11 to page 0
+Child(11): page 0, value 11
+Child(12): wrote 12 to page 0
+Child(12): page 0, value 12
+Child(12): wrote 12 to page 1
+Child(12): page 1, value 12
+Child(11): wrote 11 to page 1
+Child(11): page 1, value 11
+Child(11): wrote 11 to page 2
+Child(11): page 2, value 11
+Child(12): wrote 12 to page 2
+Child(12): page 2, value 12
+Child(12): wrote 12 to page 3
+Child(12): page 3, value 12
+Child(12): reading one location from each of 4 pages
+Child(11): wrote 11 to page 3
+Child(11): page 3, value 11
+Child(11): reading one location from each of 4 pages
+Child(11): page 0, value 11
+Child(12): page 0, value 12
+Child(12): page 1, value 12
+Child(11): page 1, value 11
+Child(11): page 2, value 11
+Child(12): page 2, value 12
+Child(12): page 3, value 12
+Child(12): vmStats.faults = 47
+
+Child(12): iteration 2
+Child(12): writing one location to each of 4 pages
+Child(11): page 3, value 11
+Child(11): vmStats.faults = 48
+
+Child(11): iteration 2
+Child(11): writing one location to each of 4 pages
+Child(11): wrote 11 to page 0
+Child(11): page 0, value 11
+Child(12): wrote 12 to page 0
+Child(12): page 0, value 12
+Child(12): wrote 12 to page 1
+Child(12): page 1, value 12
+Child(11): wrote 11 to page 1
+Child(11): page 1, value 11
+Child(11): wrote 11 to page 2
+Child(11): page 2, value 11
+Child(12): wrote 12 to page 2
+Child(12): page 2, value 12
+Child(12): wrote 12 to page 3
+Child(12): page 3, value 12
+Child(12): reading one location from each of 4 pages
+Child(11): wrote 11 to page 3
+Child(11): page 3, value 11
+Child(11): reading one location from each of 4 pages
+Child(11): page 0, value 11
+Child(12): page 0, value 12
+Child(12): page 1, value 12
+Child(11): page 1, value 11
+Child(11): page 2, value 11
+Child(12): page 2, value 12
+Child(12): page 3, value 12
+Child(12): vmStats.faults = 71
+
+Child(11): page 3, value 11
+Child(11): vmStats.faults = 71
+
+start5(): done
+VmStats
+pages:          4
+frames:         3
+diskBlocks:     64
+freeFrames:     3
+freeDiskBlocks: 56
+switches:       2086
+faults:         71
+new:            47
+pageIns:        60
+pageOuts:       24
+replaced:       0
+All processes completed.
