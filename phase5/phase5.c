@@ -224,9 +224,9 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
 
    vmStats.pages = pages;
    vmStats.frames = frames;
-   vmStats.diskBlocks = numTracksOnDisk;
+   vmStats.diskBlocks = numTracksOnDisk * 2;
    vmStats.freeFrames = frames;
-   vmStats.freeDiskBlocks = numTracksOnDisk;
+   vmStats.freeDiskBlocks = numTracksOnDisk * 2;
    vmStats.faults = 0;
    vmStats.switches = 0;
    vmStats.new = 0;
@@ -538,54 +538,64 @@ static int Pager(char *buf){
                 void * addr = vmRegion + (page * USLOSS_MmuPageSize());
                 char buffer[USLOSS_MmuPageSize()];
 
-                /* find next available location on swap disk */
+                int diskLocation;
+                int firstUnused = 1;
+                /* find location on swap disk for page */
                 for (int i = 0; i < diskTableSize; i++) {
-                    if (diskTable[i].state == UNUSED) {
-
-                        /* save frame to buffer */
-                        int result = USLOSS_MmuMap(0, page, freeFrame, 
-                                USLOSS_MMU_PROT_RW);
-                        if (result != USLOSS_MMU_OK) {
-                            USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n"
-                                    , result);
-                        }
-
-                        memcpy(buffer, addr, USLOSS_MmuPageSize());
-
-                        result = USLOSS_MmuUnmap(0, page);
-                        if (result != USLOSS_MMU_OK) {
-                            USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: "
-                                    "%d\n", result);
-                        }
-
-                        // release clockSem before writing
-                        //semvReal(clockSem);
-                        diskWriteReal(1, diskTable[i].track, 
-                                diskTable[i].sector, USLOSS_MmuPageSize() / 
-                                USLOSS_DISK_SECTOR_SIZE, buffer);
-
-                        frameTable[clockHand].ref = UNREFERENCED;
-                        frameTable[clockHand].dirty = CLEAN;
-                        USLOSS_MmuSetAccess(clockHand, 
-                                frameTable[clockHand].dirty);
-
-                        /* update disk table and page table state */
-                        diskTable[i].state = USED;
-                        diskTable[i].pid = frameTable[freeFrame].pid;
-                        diskTable[i].page = page;
-                        frameTable[freeFrame].page->diskTableIndex = i;
-                        frameTable[freeFrame].page->frame = -1;
+                    if (diskTable[i].pid == pid && diskTable[i].page == page) {
+                        diskLocation = i;
+                        break;
+                    } else if (firstUnused && diskTable[i].state == UNUSED) {
+                        firstUnused = 0;
+                        diskLocation = i;
 
                         sempReal(vmStatSem);
-                        vmStats.pageOuts++;
+                        vmStats.freeDiskBlocks--;
                         semvReal(vmStatSem);
-
-                        clockHand++;
-                        if (clockHand == vmStats.frames) {
-                            clockHand = 0;
-                        }
-                        break;
                     }
+                }
+
+                /* save frame to buffer */
+                int result = USLOSS_MmuMap(0, page, freeFrame, 
+                        USLOSS_MMU_PROT_RW);
+                if (result != USLOSS_MMU_OK) {
+                    USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n"
+                            , result);
+                }
+
+                memcpy(buffer, addr, USLOSS_MmuPageSize());
+
+                result = USLOSS_MmuUnmap(0, page);
+                if (result != USLOSS_MMU_OK) {
+                    USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: "
+                            "%d\n", result);
+                }
+
+                // release clockSem before writing
+                //semvReal(clockSem);
+                diskWriteReal(1, diskTable[diskLocation].track, 
+                        diskTable[diskLocation].sector, USLOSS_MmuPageSize() / 
+                        USLOSS_DISK_SECTOR_SIZE, buffer);
+
+                frameTable[clockHand].ref = UNREFERENCED;
+                frameTable[clockHand].dirty = CLEAN;
+                USLOSS_MmuSetAccess(clockHand, 
+                        frameTable[clockHand].dirty);
+
+                /* update disk table and page table state */
+                diskTable[diskLocation].state = USED;
+                diskTable[diskLocation].pid = frameTable[freeFrame].pid;
+                diskTable[diskLocation].page = page;
+                frameTable[freeFrame].page->diskTableIndex = diskLocation;
+                frameTable[freeFrame].page->frame = -1;
+
+                sempReal(vmStatSem);
+                vmStats.pageOuts++;
+                semvReal(vmStatSem);
+
+                clockHand++;
+                if (clockHand == vmStats.frames) {
+                    clockHand = 0;
                 }
             }
         }
