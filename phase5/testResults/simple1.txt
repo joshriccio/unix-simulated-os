@@ -22,9 +22,9 @@ start5(): done
 VmStats
 pages:          1
 frames:         1
-diskBlocks:     32
+diskBlocks:     64
 freeFrames:     1
-freeDiskBlocks: 32
+freeDiskBlocks: 64
 switches:       10
 faults:         1
 new:            1

@@ -1,11 +1,10 @@
 /*
- * simple7.c
+ * simple8.c
  *
- * Two processes.
- * Each writing and reading data from the two pages
- * No disk I/O should occur.  0 replaced pages and 2 page faults
+ * One process writes every page, where frames = pages-1. If the clock
+ * algorithm starts with frame 0, this will cause a page fault on every
+ * access. 
  */
-
 #include <phase5.h>
 #include <usyscall.h>
 #include <libuser.h>
@@ -15,12 +14,12 @@
 
 #define Tconsole USLOSS_Console
 
-#define TEST        "simple7"
-#define PAGES       2
+#define TEST        "simple8"
+#define PAGES       4
 #define CHILDREN    2
-#define FRAMES      2
+#define FRAMES      (PAGES-1)
 #define PRIORITY    5
-#define ITERATIONS  1
+#define ITERATIONS  10
 #define PAGERS      1
 #define MAPPINGS    PAGES
 
@@ -31,36 +30,38 @@ int sem;
 int
 Child(char *arg)
 {
-    int    pid;
-    char   str[64]= "This is the first page";
+    int     pid;
+    int     page;
+    int     i;
+    //char   *buffer;
+    //VmStats before;
+    int     value;
 
     GetPID(&pid);
     Tconsole("\nChild(%d): starting\n", pid);
 
-    Tconsole("Child(%d): str = %s\n", pid, str);
-    Tconsole("Child(%d): strlen(str) = %d\n", pid, strlen(str));
+    //buffer = (char *) vmRegion;
 
-    memcpy(vmRegion, str, strlen(str)+1);  // +1 to copy nul character
 
-    Tconsole("Child(%d): after memcpy\n", pid);
+    for (i = 0; i < ITERATIONS; i++) {
+        Tconsole("\nChild(%d): iteration %d\n", pid, i);
 
-    if (strcmp(vmRegion, str) == 0)
-        Tconsole("Child(%d): strcmp first attempt worked!\n", pid);
-    else
-        Tconsole("Child(%d): Wrong string read, first attempt\n", pid);
+        // Read one int from the first location on each of the pages
+        // in the VM region.
+        Tconsole("Child(%d): reading one location from each of %d pages\n",
+                 pid, PAGES);
+        for (page = 0; page < PAGES; page++) {
+            value = * ((int *) (vmRegion + (page * USLOSS_MmuPageSize())));
+            Tconsole("Child(%d): page %d, value %d\n", pid, page, value);
+            assert(value == 0);
+        }
 
+        Tconsole("Child(%d): vmStats.faults = %d\n", pid, vmStats.faults);
+    }
+
+    Tconsole("\n");
     SemV(sem);
-
-    if (strcmp(vmRegion, str) == 0)
-        Tconsole("Child(%d): strcmp second attempt worked!\n", pid);
-    else
-        Tconsole("Child(%d): Wrong string read, second attempt\n", pid);
-
-    Tconsole("Child(%d): checking various vmStats\n", pid);
-
-    Tconsole("Child(%d): terminating\n\n", pid);
-
-    Terminate(137);
+    Terminate(135);
     return 0;
 } /* Child */
 
@@ -81,6 +82,7 @@ start5(char *arg)
     Tconsole("          Priority:   %d\n", PRIORITY);
 
     status = VmInit( MAPPINGS, PAGES, FRAMES, PAGERS, &vmRegion );
+
     Tconsole("start5(): after call to VmInit, status = %d\n\n", status);
     assert(status == 0);
     assert(vmRegion != NULL);
@@ -88,22 +90,16 @@ start5(char *arg)
     SemCreate(0, &sem);
 
     for (int i = 0; i < CHILDREN; i++)
-        Spawn("Child", Child, NULL, USLOSS_MIN_STACK * 7, PRIORITY, &pid[i]);
+        Spawn("Child", Child,  0,USLOSS_MIN_STACK*7,PRIORITY, &pid[i]);
 
-
-    // One P operation per child
     for (int i = 0; i < CHILDREN; i++)
         SemP( sem);
 
+
     for (int i = 0; i < CHILDREN; i++) {
         Wait(&pid[i], &status);
-        assert(status == 137);
+        assert(status == 135);
     }
-
-    assert(vmStats.faults == 2);
-    assert(vmStats.new == 2);
-    assert(vmStats.pageOuts == 0);
-    assert(vmStats.pageIns == 0);
 
     Tconsole("start5(): done\n");
     //PrintStats();

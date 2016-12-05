@@ -2,8 +2,7 @@
  * simple7.c
  *
  * Two processes.
- * Each writing and reading data from the one page with
- * a context switch in between.
+ * Each writing and reading data from the two pages.
  * No disk I/O should occur.  0 replaced pages and 2 page faults
  */
 
@@ -17,9 +16,9 @@
 #define Tconsole USLOSS_Console
 
 #define TEST        "simple7"
-#define PAGES       1
+#define PAGES       2
 #define CHILDREN    2
-#define FRAMES      1
+#define FRAMES      2
 #define PRIORITY    5
 #define ITERATIONS  1
 #define PAGERS      1

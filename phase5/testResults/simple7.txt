@@ -1,8 +1,8 @@
 start5(): Running:    simple7
 start5(): Pagers:     1
-          Mappings:   1
-          Pages:      1
-          Frames:     1
+          Mappings:   2
+          Pages:      2
+          Frames:     2
           Children:   2
           Iterations: 1
           Priority:   5
@@ -30,11 +30,11 @@ Child(12): terminating
 
 start5(): done
 VmStats
-pages:          1
-frames:         1
-diskBlocks:     32
+pages:          2
+frames:         2
+diskBlocks:     64
 freeFrames:     2
-freeDiskBlocks: 32
+freeDiskBlocks: 64
 switches:       19
 faults:         2
 new:            2

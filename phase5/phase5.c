@@ -41,7 +41,8 @@ void vmDestroyReal(void);
 static void FaultHandler(int  type, void *arg);
 static int Pager(char *buf);
 int getPID5();
-
+void debugPageTable(int pid);
+void debugFrameTable(int pid);
 Process procTable[MAXPROC];
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
@@ -457,7 +458,8 @@ static int Pager(char *buf){
         if (pid == -1 ) {
             break;
         }
-
+	//debugPageTable(pid);
+	//debugFrameTable(0);
         /* update frameTable to match MMU */
         int accessBit;
         for (int i = 0; i < vmStats.frames; i++) {
@@ -479,11 +481,10 @@ static int Pager(char *buf){
         for (int i = 0; i < vmStats.frames; i++) {
             if (frameTable[i].state == UNUSED){
                 freeFrame = i; // save frame index, break out of loop
-
+		//USLOSS_Console("Pager: Frame %d is unused\n", i);
                 sempReal(vmStatSem);
                 vmStats.freeFrames--;
                 semvReal(vmStatSem);
-
                 break;
             }
         }
@@ -499,6 +500,12 @@ static int Pager(char *buf){
                         freeFrame = clockHand;
                         frameTable[clockHand].page->frame = -1;
                         found = 1;
+			//USLOSS_Console("pass 1 Found UNref & Clean frame, %d\n", clockHand);
+                clockHand++;
+                if (clockHand == vmStats.frames) {
+                    clockHand = 0;
+                }
+
                         break;
                     }
                 } else {
@@ -522,6 +529,12 @@ static int Pager(char *buf){
                             freeFrame = clockHand;
                             frameTable[clockHand].page->frame = -1;
                             found = 1;
+			   // USLOSS_Console("pass 2 Found UNref & Clean frame, %d\n", clockHand);
+                clockHand++;
+                if (clockHand == vmStats.frames) {
+                    clockHand = 0;
+                }
+
                             break;
                         }
                     }
@@ -554,7 +567,7 @@ static int Pager(char *buf){
                         semvReal(vmStatSem);
                     }
                 }
-
+		//USLOSS_Console("Using clockhand, %d\n", clockHand);
                 /* save frame to buffer */
                 int result = USLOSS_MmuMap(0, page, freeFrame, 
                         USLOSS_MMU_PROT_RW);
@@ -695,3 +708,22 @@ int getPID5() {
     getPID_real(&pid);
     return pid;
 }
+
+void debugPageTable(int pid){
+    USLOSS_Console("-Process %d Page Table-\n", pid);
+    for(int i=0; i<vmStats.pages; i++){
+	USLOSS_Console("Page %d -> Frame %d \n",i, procTable[pid].pageTable[i].frame);
+    }
+}
+
+void debugFrameTable(int pid){
+    USLOSS_Console("-Current Frame Table-\n", pid);
+    for(int i=0; i<vmStats.frames; i++){
+	if(frameTable[i].page != NULL)
+        USLOSS_Console("Frame %d -> Process %d: Page %d: Ref %d: Dirty: %d\n"
+		,i, frameTable[i].pid,frameTable[i].page->pageNum, frameTable[i].ref, frameTable[i].dirty);
+	else
+	USLOSS_Console("Frame unused\n");
+    }
+}
+
