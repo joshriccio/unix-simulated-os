@@ -432,36 +432,31 @@ static void FaultHandler(int  type, void *arg){
    MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
 } /* FaultHandler */
 
-/*
- *----------------------------------------------------------------------
- *
+/*----------------------------------------------------------------------
  * Pager 
  *
  * Kernel process that handles page faults and does page replacement.
  *
- * Results:
- * None.
+ * Results: None
  *
- * Side effects:
- * None.
- *
- *----------------------------------------------------------------------
- */
-static int Pager(char *buf){
+ * Side effects: None
+ *-----------------------------------------------------------------------*/
+static int Pager(char *buf) {
     int pid;
 
     while (1) {
 
-        /* Wait for fault to occur (receive from mailbox) */
+        /* Wait for fault to occur to be sent by faulting process */
         MboxReceive(pagerMbox, &pid, sizeof(int));
 
         if (pid == -1 ) {
             break;
         }
+
         /* update frameTable to match MMU */
         int accessBit;
+
         for (int i = 0; i < vmStats.frames; i++) {
-            //TODO: sempReal(frameSem);
             int result = USLOSS_MmuGetAccess(i, &accessBit);
             if (result != USLOSS_MMU_OK) {
                 USLOSS_Console("Pager_accessBit: USLOSS_MmuGetAccess Error: "
@@ -469,37 +464,50 @@ static int Pager(char *buf){
             }
             frameTable[i].ref = accessBit & REFERENCED;
             frameTable[i].dirty = accessBit & DIRTY;
-            //semvReal(frameSem);
         }
+
+        /* Look for free frame to store the page */
         int freeFrame = -1;
         int page = -1;
-        /* Look for free frame */
+
         for (int i = 0; i < vmStats.frames; i++) {
             if (frameTable[i].state == UNUSED){
-                freeFrame = i; // save frame index, break out of loop
+                freeFrame = i;
+
                 sempReal(vmStatSem);
                 vmStats.freeFrames--;
                 semvReal(vmStatSem);
+
                 break;
             }
         }
 
-        /* If there isn't one then use clock algorithm to
-         * replace a page (perhaps write to disk) */
+        /*
+         * If there are no free frames available use clock algorithm to
+         * replace a page (perhaps write to disk) 
+         */
         if (freeFrame == -1) {
-            //sempReal(clockSem);
+
+            /* 
+             * Find the first frame that is unreferenced. For every frame that 
+             * is found that is referenced, change it to unreferenced.
+             */
             for (int i = 0; i < vmStats.frames * 2; i++) {
                 if (frameTable[clockHand].ref == UNREFERENCED) {
-                        freeFrame = clockHand;
+                    freeFrame = clockHand;
+
                 	clockHand++;
                 	if (clockHand == vmStats.frames) {
                 	    clockHand = 0;
                 	}
-                        break;
+
+                    break;
                 } else {
                     frameTable[clockHand].ref = UNREFERENCED;
+
                     USLOSS_MmuSetAccess(clockHand, 
                             frameTable[clockHand].dirty);
+
                     clockHand++;
                     if (clockHand == vmStats.frames) {
                         clockHand = 0;
@@ -507,13 +515,21 @@ static int Pager(char *buf){
                 }
             }
 
+            /* If the frame is dirty, write the frame to disk */
             if (frameTable[freeFrame].dirty == DIRTY) {
+
+                /* page to be written */
                 page = frameTable[freeFrame].page->pageNum;
+
+                /* memory to write the page to */
                 void * addr = vmRegion + (page * USLOSS_MmuPageSize());
+
+                /* used by pager to store the page before writing to disk */
                 char buffer[USLOSS_MmuPageSize()];
 
-                int diskLocation;
-                int firstUnused = 1;
+                int diskLocation;    // location on disk to store the page
+                int firstUnused = 1; // first available disk block
+
                 /* find location on swap disk for page */
                 for (int i = 0; i < diskTableSize; i++) {
                     if (diskTable[i].pid == pid && diskTable[i].page == page) {
@@ -528,7 +544,8 @@ static int Pager(char *buf){
                         semvReal(vmStatSem);
                     }
                 }
-                /* save frame to buffer */
+
+                /* save frame to buffer. need mapping to MMU */
                 int result = USLOSS_MmuMap(0, page, freeFrame, 
                         USLOSS_MMU_PROT_RW);
                 if (result != USLOSS_MMU_OK) {
@@ -544,12 +561,12 @@ static int Pager(char *buf){
                             "%d\n", result);
                 }
 
-                // release clockSem before writing
-                //semvReal(clockSem);
+                /* write page from buffer to disk */
                 diskWriteReal(1, diskTable[diskLocation].track, 
                         diskTable[diskLocation].sector, USLOSS_MmuPageSize() / 
                         USLOSS_DISK_SECTOR_SIZE, buffer);
 
+                /* set frame table and MMU access bits */
                 frameTable[freeFrame].ref = UNREFERENCED;
                 frameTable[freeFrame].dirty = CLEAN;
                 USLOSS_MmuSetAccess(freeFrame, 
@@ -578,23 +595,24 @@ static int Pager(char *buf){
         procTable[pid].pageTable[page].pageNum = page;
         
         /* update frame table */
-	if( frameTable[freeFrame].state == USED )
-	    frameTable[freeFrame].page->frame = -1;
-	else
-	    frameTable[freeFrame].state = USED; 
+        if (frameTable[freeFrame].state == USED) {
+            frameTable[freeFrame].page->frame = -1;
+        } else {
+            frameTable[freeFrame].state = USED; 
+        }
         frameTable[freeFrame].page = &procTable[pid].pageTable[page];
         frameTable[freeFrame].pid = pid;
 
-        /* Load page into frame from disk or initialize frame */
-         if (procTable[pid % MAXPROC].pageTable[page].diskTableIndex != -1) {
-            int i = procTable[pid].pageTable[page].diskTableIndex;
+        /* Load page into frame from disk */
+        if (procTable[pid % MAXPROC].pageTable[page].diskTableIndex != -1) {
+            int diskIndex = procTable[pid].pageTable[page].diskTableIndex;
 
-            // read from disk
-            char buffer[USLOSS_MmuPageSize()];
-            //TODO:USLOSS_Console("Pager(): Reading page from disk\n");
-            diskReadReal(1, diskTable[i].track,
-                             diskTable[i].sector, USLOSS_MmuPageSize() /
-                             USLOSS_DISK_SECTOR_SIZE, buffer);
+            /* read page from disk */
+            char buffer[USLOSS_MmuPageSize()]; // buffer to read page to
+
+            diskReadReal(1, diskTable[diskIndex].track,
+                         diskTable[diskIndex].sector, USLOSS_MmuPageSize() /
+                         USLOSS_DISK_SECTOR_SIZE, buffer);
 
             /* save buffer to frame */
             int result = USLOSS_MmuMap(0, page, freeFrame,
@@ -606,27 +624,33 @@ static int Pager(char *buf){
 
             memcpy(faults[pid % MAXPROC].addr, buffer, USLOSS_MmuPageSize());
             
-            result = USLOSS_MmuSetAccess(freeFrame, UNREFERENCED + CLEAN);
-            frameTable[freeFrame].ref = UNREFERENCED;
-            frameTable[freeFrame].dirty = CLEAN;
-
-            procTable[pid % MAXPROC].pageTable[page].frame = freeFrame;
-
-            if (result != USLOSS_MMU_OK) {
-                USLOSS_Console("Pager(): USLOSS_MmuSetAccess Error: %d\n",
-                        result);
-            }
-
             result = USLOSS_MmuUnmap(0, page);
             if (result != USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: "
                     "%d\n", result);
             }
             
+            /* set access bits in MMU and frame table */
+            result = USLOSS_MmuSetAccess(freeFrame, UNREFERENCED + CLEAN);
+            if (result != USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuSetAccess Error: %d\n",
+                        result);
+            }
+
+            frameTable[freeFrame].ref = UNREFERENCED;
+            frameTable[freeFrame].dirty = CLEAN;
+
+            /* set frame to page in page table */
+            procTable[pid % MAXPROC].pageTable[page].frame = freeFrame;
+
             sempReal(vmStatSem);
             vmStats.pageIns++;
             semvReal(vmStatSem);
-         } else if (procTable[pid].pageTable[page].accessed == 0) {
+
+        /* first time page is entering vm system, initialize frame */
+        } else if (procTable[pid].pageTable[page].accessed == 0) {
+
+            /* create mapping for pager to access frame */
             int result = USLOSS_MmuMap(0, page, freeFrame, USLOSS_MMU_PROT_RW);
             if (result != USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuMap Error: %d\n", result);
@@ -634,6 +658,12 @@ static int Pager(char *buf){
 
             memset(faults[pid % MAXPROC].addr, 0, USLOSS_MmuPageSize());
 
+            result = USLOSS_MmuUnmap(0, page);
+            if (result != USLOSS_MMU_OK) {
+                USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: %d\n", result);
+            }
+
+            /* update access bits of MMU and frame table */
             frameTable[freeFrame].ref = UNREFERENCED; 
             frameTable[freeFrame].dirty = CLEAN; 
 
@@ -641,11 +671,6 @@ static int Pager(char *buf){
             if (result != USLOSS_MMU_OK) {
                 USLOSS_Console("Pager(): USLOSS_MmuSetAccess Error: %d\n", 
                         result);
-            }
-
-            result = USLOSS_MmuUnmap(0, page);
-            if (result != USLOSS_MMU_OK) {
-                USLOSS_Console("Pager(): USLOSS_MmuUnmap Error: %d\n", result);
             }
 
             procTable[pid].pageTable[page].accessed = 1;
