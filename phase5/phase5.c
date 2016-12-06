@@ -109,26 +109,22 @@ int start4(char *arg){
     return 0;
 } /* start4 */
 
-/*
- *----------------------------------------------------------------------
- *
- * VmInit --
+ /*----------------------------------------------------------------------
+ * VmInit
  *
  * Stub for the VmInit system call.
  *
- * Results:
- *      None.
+ * Results: None
  *
- * Side effects:
- *      VM system is initialized.
- *
+ * Side effects: VM system is initialized.
  *----------------------------------------------------------------------
  */
 static void vmInit(systemArgs *args) {
-    void *result;
+    void *result;  // value returned from vmInitReal
 
     CheckMode();
 
+    /* get values from systemArgs struct */
     int mappings = ((int) (long) args->arg1);
     int pages = ((int) (long) args->arg2);
     int frames = ((int) (long) args->arg3);
@@ -136,6 +132,7 @@ static void vmInit(systemArgs *args) {
 
     result = vmInitReal(mappings, pages, frames, pagers);
 
+    /* parse values to return to user */
     if (((int) (long) result) < 0) {
         args->arg4 = result;
     } else {
@@ -143,7 +140,6 @@ static void vmInit(systemArgs *args) {
     }
 
     args->arg1 = result;
-
 } /* vmInit */
 
 
