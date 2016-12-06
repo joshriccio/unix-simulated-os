@@ -268,21 +268,15 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
 } /* vmInitReal */
 
 
-/*
- *----------------------------------------------------------------------
+ /*----------------------------------------------------------------------
+ * PrintStats
  *
- * PrintStats --
+ * Print out VM statistics.
  *
- *      Print out VM statistics.
+ * Results: None
  *
- * Results:
- *      None
- *
- * Side effects:
- *      Stuff is printed to the USLOSS_Console.
- *
- *----------------------------------------------------------------------
- */
+ * Side effects: Stuff is printed to the USLOSS_Console.
+ *----------------------------------------------------------------------*/
 void PrintStats(void){
      USLOSS_Console("VmStats\n");
      USLOSS_Console("pages:          %d\n", vmStats.pages);
@@ -298,48 +292,38 @@ void PrintStats(void){
      USLOSS_Console("replaced:       %d\n", vmStats.replaced);
 } /* PrintStats */
 
-
-/*
- *----------------------------------------------------------------------
+ /*----------------------------------------------------------------------
+ * vmDestroyReal
  *
- * vmDestroyReal --
+ * Called by vmDestroy. Frees all of the global data structures
  *
- * Called by vmDestroy.
- * Frees all of the global data structures
+ * Results: None
  *
- * Results:
- *      None
- *
- * Side effects:
- *      The MMU is turned off.
- *
- *----------------------------------------------------------------------
- */
+ * Side effects: The MMU is turned off.
+ *----------------------------------------------------------------------*/
 void vmDestroyReal(void){
 
-   CheckMode();
-   USLOSS_MmuDone();
-   /*
-    * Kill the pagers here.
-    */
-   int terminateMsg = -1;
-   for (int i = 0; i < numPagers; i++) {
+    CheckMode();
+    USLOSS_MmuDone();
+
+    /* kill the pagers */
+    int terminateMsg = -1;
+    for (int i = 0; i < numPagers; i++) {
        MboxSend(pagerMbox, &terminateMsg, sizeof(int));
-   }
+    }
 
-   for (int i = 0; i < numPagers; i++) {
+    /* zap to wait or pagers to terminate */
+    for (int i = 0; i < numPagers; i++) {
        zap(pagerPids[i]);
-   }
+    }
 
-   /* 
-    * Print vm statistics.
-    */
-   PrintStats();
+    /* Print vm statistics */
+    PrintStats();
 
-   //TODO: free memory 
-   //free framesTable and pager PID table
+    //TODO: free memory 
+    //free framesTable and pager PID table
 
-   vmInitialized = 0;  //TODO: might be after MmuDone
+    vmInitialized = 0;
 } /* vmDestroyReal */
 
  /*----------------------------------------------------------------------
