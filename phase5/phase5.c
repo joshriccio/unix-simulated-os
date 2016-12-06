@@ -117,8 +117,7 @@ int start4(char *arg){
  * Results: None
  *
  * Side effects: VM system is initialized.
- *----------------------------------------------------------------------
- */
+ *----------------------------------------------------------------------*/
 static void vmInit(systemArgs *args) {
     void *result;  // value returned from vmInitReal
 
@@ -156,92 +155,79 @@ static void vmDestroy(systemArgs *sysargsPtr){
    vmDestroyReal();
 } /* vmDestroy */
 
-/*
- *----------------------------------------------------------------------
+ /*----------------------------------------------------------------------
+ * vmInitReal
  *
- * vmInitReal --
+ * Called by vmInit. Initializes the VM system by configuring the MMU and 
+ * setting up the page tables.
  *
- * Called by vmInit.
- * Initializes the VM system by configuring the MMU and setting
- * up the page tables.
+ * Results: Address of the VM region.
  *
- * Results:
- *      Address of the VM region.
- *
- * Side effects:
- *      The MMU is initialized.
- *
- *----------------------------------------------------------------------
- */
+ * Side effects: The MMU is initialized.
+ *----------------------------------------------------------------------*/
 void *vmInitReal(int mappings, int pages, int frames, int pagers){
-   int status;
-   int numPagesInVmRegion;
+    int status;                // value returned by MMU functions
+    int numPagesInVmRegion;    // number of pages in vm region
 
-   CheckMode();
+    CheckMode();
 
-    // error checking
+    /* check for invalid inputs */
     if (mappings < 1 || pages < 1 || frames < 1 || pagers < 1) {
         return ((void *)(long)-1);
     }
-
     if (pagers > MAXPAGERS) {
         return ((void *)(long)-1);
     }
-
     if (mappings != pages) {
         return ((void *)(long)-1);
     }
 
-   status = USLOSS_MmuInit(mappings, pages, frames);
-   if (status != USLOSS_MMU_OK) {
-      USLOSS_Console("vmInitReal: couldn't init MMU, status %d\n", status);
-      abort();
-   }
-   
-   vmInitialized = 1;
+    /* initialize MMU */
+    status = USLOSS_MmuInit(mappings, pages, frames);
+    if (status != USLOSS_MMU_OK) {
+        USLOSS_Console("vmInitReal: couldn't init MMU, status %d\n", status);
+        abort();
+    }
 
-   /*
-    * Zero out, then initialize, the vmStats structure
-    */
-   int sectorSize, sectorsInTrack, numTracksOnDisk;
+    vmInitialized = 1; // mark system as virtual memory initialized
 
-   diskSizeReal(1, &sectorSize, &sectorsInTrack, &numTracksOnDisk);
+    /* Zero out, then initialize, the vmStats structure */
+    int sectorSize, sectorsInTrack, numTracksOnDisk;
+    diskSizeReal(1, &sectorSize, &sectorsInTrack, &numTracksOnDisk);
 
-   vmStats.pages = pages;
-   vmStats.frames = frames;
-   vmStats.diskBlocks = numTracksOnDisk * 2;
-   vmStats.freeFrames = frames;
-   vmStats.freeDiskBlocks = numTracksOnDisk * 2;
-   vmStats.faults = 0;
-   vmStats.switches = 0;
-   vmStats.new = 0;
-   vmStats.pageIns = 0;
-   vmStats.pageOuts = 0;
-   vmStats.replaced = 0;
+    vmStats.pages = pages;
+    vmStats.frames = frames;
+    vmStats.diskBlocks = numTracksOnDisk * 2;
+    vmStats.freeFrames = frames;
+    vmStats.freeDiskBlocks = numTracksOnDisk * 2;
+    vmStats.faults = 0;
+    vmStats.switches = 0;
+    vmStats.new = 0;
+    vmStats.pageIns = 0;
+    vmStats.pageOuts = 0;
+    vmStats.replaced = 0;
 
-    vmStatSem = semcreateReal(1);  // MUTEX for vmStats
+    vmStatSem = semcreateReal(1);  // mutal exclusion for vmStats
 
-   USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
+    USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler; // handler for MMU fault
 
-   /* initialize disk table */
-   diskTable = malloc(sectorsInTrack * numTracksOnDisk * sizeof(DTE));
-   diskTableSize = sectorsInTrack * numTracksOnDisk;
+    /* initialize disk table */
+    diskTable = malloc(sectorsInTrack * numTracksOnDisk * sizeof(DTE));
+    diskTableSize = sectorsInTrack * numTracksOnDisk;
 
-   int trackNum = 0;
-   for (int i = 0; i < diskTableSize; i += 2) {
-       diskTable[i].track = trackNum;
-       diskTable[i + 1].track = trackNum++;
-       diskTable[i].sector = 0;
-       diskTable[i + 1].sector = sectorsInTrack / 2;
-       diskTable[i].state = UNUSED;
-       diskTable[i + 1].state = UNUSED;
-   }
+    int trackNum = 0;
+    for (int i = 0; i < diskTableSize; i += 2) {
+        diskTable[i].track = trackNum;
+        diskTable[i + 1].track = trackNum++;
+        diskTable[i].sector = 0;
+        diskTable[i + 1].sector = sectorsInTrack / 2;
+        diskTable[i].state = UNUSED;
+        diskTable[i + 1].state = UNUSED;
+    }
 
 
-   /*
-    * Initialize page tables, and fault mbox.
-    */
-   for (int i = 0; i < MAXPROC; i++) {
+    /* Initialize page tables, and fault mbox */
+    for (int i = 0; i < MAXPROC; i++) {
        procTable[i].pid = -1;
        procTable[i].vm = 0;
        procTable[i].numPages = pages;
@@ -249,58 +235,48 @@ void *vmInitReal(int mappings, int pages, int frames, int pagers){
        faults[i].pid = -1;
        faults[i].replyMbox = MboxCreate(1, 0);
        faults[i].addr = NULL;
-   }
+    }
 
-   /*
-    * Initialize frame tables.
-    */
-   frameTable = malloc(frames * sizeof(FTE));
-   for (int i = 0; i < frames; i++) {
-      frameTable[i].state = UNUSED;
-      frameTable[i].ref = UNREFERENCED;
-      frameTable[i].dirty = CLEAN;
-      frameTable[i].pid = -1;
-      frameTable[i].page = NULL;
-   }   
-   
-   frameSem = semcreateReal(1);
+    /* Initialize frame tables */
+    frameTable = malloc(frames * sizeof(FTE));
+    for (int i = 0; i < frames; i++) {
+        frameTable[i].state = UNUSED;
+        frameTable[i].ref = UNREFERENCED;
+        frameTable[i].dirty = CLEAN;
+        frameTable[i].pid = -1;
+        frameTable[i].page = NULL;
+    }   
 
-   /* initialize clock hand for clock algorithm */
-   clockHand = 0;
-   clockSem = semcreateReal(1);
+    frameSem = semcreateReal(1);   // mutal exclusion for frameTable
 
-   /*
-    * Fork the pagers.
-    */
-   numPagers = pagers;
-   pagerPids = malloc(pagers * sizeof(int));
-   char buf[100];
-   pagerMbox = MboxCreate(pagers, sizeof(int));
-   for (int i = 0; i < numPagers; i++){
-      pagerPids[i] = fork1("pagerProcess", Pager, buf, USLOSS_MIN_STACK, 
+    /* initialize clock hand for clock algorithm */
+    clockHand = 0;
+    clockSem = semcreateReal(1);   // mutal exclusion for clockHand
+
+    /* Fork the pagers */
+    numPagers = pagers;    // global for number of pagers in system
+    pagerPids = malloc(pagers * sizeof(int));
+    char buf[100];
+    pagerMbox = MboxCreate(pagers, sizeof(int));
+    for (int i = 0; i < numPagers; i++){
+        pagerPids[i] = fork1("pagerProcess", Pager, buf, USLOSS_MIN_STACK, 
               PAGER_PRIORITY);
-   }
+    }
 
-   vmRegion = USLOSS_MmuRegion(&numPagesInVmRegion);
-   return vmRegion;
+    vmRegion = USLOSS_MmuRegion(&numPagesInVmRegion);
+    return vmRegion;
 } /* vmInitReal */
 
 
-/*
- *----------------------------------------------------------------------
+ /*----------------------------------------------------------------------
+ * PrintStats
  *
- * PrintStats --
+ * Print out VM statistics.
  *
- *      Print out VM statistics.
+ * Results: None
  *
- * Results:
- *      None
- *
- * Side effects:
- *      Stuff is printed to the USLOSS_Console.
- *
- *----------------------------------------------------------------------
- */
+ * Side effects: Stuff is printed to the USLOSS_Console.
+ *----------------------------------------------------------------------*/
 void PrintStats(void){
      USLOSS_Console("VmStats\n");
      USLOSS_Console("pages:          %d\n", vmStats.pages);
@@ -316,48 +292,38 @@ void PrintStats(void){
      USLOSS_Console("replaced:       %d\n", vmStats.replaced);
 } /* PrintStats */
 
-
-/*
- *----------------------------------------------------------------------
+ /*----------------------------------------------------------------------
+ * vmDestroyReal
  *
- * vmDestroyReal --
+ * Called by vmDestroy. Frees all of the global data structures
  *
- * Called by vmDestroy.
- * Frees all of the global data structures
+ * Results: None
  *
- * Results:
- *      None
- *
- * Side effects:
- *      The MMU is turned off.
- *
- *----------------------------------------------------------------------
- */
+ * Side effects: The MMU is turned off.
+ *----------------------------------------------------------------------*/
 void vmDestroyReal(void){
 
-   CheckMode();
-   USLOSS_MmuDone();
-   /*
-    * Kill the pagers here.
-    */
-   int terminateMsg = -1;
-   for (int i = 0; i < numPagers; i++) {
+    CheckMode();
+    USLOSS_MmuDone();
+
+    /* kill the pagers */
+    int terminateMsg = -1;
+    for (int i = 0; i < numPagers; i++) {
        MboxSend(pagerMbox, &terminateMsg, sizeof(int));
-   }
+    }
 
-   for (int i = 0; i < numPagers; i++) {
+    /* zap to wait or pagers to terminate */
+    for (int i = 0; i < numPagers; i++) {
        zap(pagerPids[i]);
-   }
+    }
 
-   /* 
-    * Print vm statistics.
-    */
-   PrintStats();
+    /* Print vm statistics */
+    PrintStats();
 
-   //TODO: free memory 
-   //free framesTable and pager PID table
+    //TODO: free memory 
+    //free framesTable and pager PID table
 
-   vmInitialized = 0;  //TODO: might be after MmuDone
+    vmInitialized = 0;
 } /* vmDestroyReal */
 
  /*----------------------------------------------------------------------
