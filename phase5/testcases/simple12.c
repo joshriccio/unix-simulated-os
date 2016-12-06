@@ -1,9 +1,8 @@
 /*
- * simple8.c
+ * simple10.c
  *
- * One process writes every page, where frames = pages-1. If the clock
- * algorithm starts with frame 0, this will cause a page fault on every
- * access. 
+ * Two processes write every page, where frames = pages.
+ * There are 2 Pagers.
  */
 #include <phase5.h>
 #include <usyscall.h>
@@ -14,13 +13,13 @@
 
 #define Tconsole USLOSS_Console
 
-#define TEST        "simple8"
-#define PAGES       4
-#define CHILDREN    2
+#define TEST        "simple10"
+#define PAGES       6
+#define CHILDREN    5
 #define FRAMES      (PAGES-1)
 #define PRIORITY    5
-#define ITERATIONS  10
-#define PAGERS      1
+#define ITERATIONS  3
+#define PAGERS      3
 #define MAPPINGS    PAGES
 
 extern void *vmRegion;
@@ -33,7 +32,7 @@ Child(char *arg)
     int     pid;
     int     page;
     int     i;
-    //char   *buffer;
+    int    *buffer;
     //VmStats before;
     int     value;
 
@@ -46,14 +45,24 @@ Child(char *arg)
     for (i = 0; i < ITERATIONS; i++) {
         Tconsole("\nChild(%d): iteration %d\n", pid, i);
 
-        // Read one int from the first location on each of the pages
+        Tconsole("Child(%d): writing one location to each of %d pages\n",
+                 pid, PAGES);
+        // Write one int to the first location on each of the pages
         // in the VM region.
+        for (page = 0; page < PAGES; page++) {
+            buffer = (int *) (vmRegion + (page * USLOSS_MmuPageSize()));
+            *buffer = pid;
+            Tconsole("Child(%d): wrote %d to page %d\n", pid, pid, page);
+        }
+
         Tconsole("Child(%d): reading one location from each of %d pages\n",
                  pid, PAGES);
+        // Read one int from the first location on each of the pages
+        // in the VM region.
         for (page = 0; page < PAGES; page++) {
             value = * ((int *) (vmRegion + (page * USLOSS_MmuPageSize())));
             Tconsole("Child(%d): page %d, value %d\n", pid, page, value);
-            assert(value == 0);
+            assert(value == pid);
         }
 
         Tconsole("Child(%d): vmStats.faults = %d\n", pid, vmStats.faults);
