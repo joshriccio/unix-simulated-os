@@ -29,38 +29,40 @@ extern void mbox_condreceive(systemArgs *args_ptr);
 extern int  semcreateReal(int init_value);
 extern int  sempReal(int semaphore);
 extern int  semvReal(int semaphore);
-extern int getPID_real(int *pid);
-extern int diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
-        int *tracksInDisk);
-extern int start5(char *arg);
+extern int  getPID_real(int *pid);
+extern int  diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
+                        int *tracksInDisk);
+extern int  start5(char *arg);
+
+/*---------------------- Prototypes ----------------------------------------*/
 
 static void vmInit(systemArgs *sysargsPtr);
+static void FaultHandler(int  type, void *arg);
+static int Pager(char *buf);
 void *vmInitReal(int mappings, int pages, int frames, int pagers);
 static void vmDestroy(systemArgs *sysargsPtr);
 void vmDestroyReal(void);
-static void FaultHandler(int  type, void *arg);
-static int Pager(char *buf);
 int getPID5();
 void debugPageTable(int pid);
 void debugFrameTable(int pid);
-Process procTable[MAXPROC];
-FaultMsg faults[MAXPROC]; /* Note that a process can have only
-                           * one fault at a time, so we can
-                           * allocate the messages statically
-                           * and index them by pid. */
-VmStats  vmStats;
-void *vmRegion;
-FTE *frameTable;
-int diskTableSize;
-DTE *diskTable;
-int numPagers;
-int *pagerPids;
-int pagerMbox;
-int vmInitialized = 0;
-int vmStatSem;
-int clockHand;
-int clockSem;
-int frameSem;
+
+/* ----------------------- Globals -----------------------------------------*/
+
+Process procTable[MAXPROC]; // process table for phase5
+FaultMsg faults[MAXPROC];   // fault messages retrieved by pagers
+VmStats  vmStats;           // for reporting virtual memory statistics
+void *vmRegion;             // address of virtual memory region
+FTE *frameTable;            // frame table accessed by the pagers
+int diskTableSize;          // number of entries in a disk table
+DTE *diskTable;             // location of pages on disk
+int numPagers;              // total number of pager processes
+int *pagerPids;             // process ID for each pager
+int pagerMbox;              // mailbox were pagers wait for faults
+int vmInitialized = 0;      // boolean, whether the virtual memory is init.
+int vmStatSem;              // semaphore for mutual exclusion on vmStat
+int clockHand;              // frame pointed to in the clock algorithm
+int clockSem;               // semaphore for mutual exclusion of clockHand
+int frameSem;               // semaphore for mutual exclusion of frame table
 
 /*
  *----------------------------------------------------------------------
