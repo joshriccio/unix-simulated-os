@@ -142,27 +142,19 @@ static void vmInit(systemArgs *args) {
     args->arg1 = result;
 } /* vmInit */
 
-
-/*
- *----------------------------------------------------------------------
- *
- * vmDestroy --
+ /*----------------------------------------------------------------------
+ * vmDestroy
  *
  * Stub for the VmDestroy system call.
  *
- * Results:
- *      None.
+ * Results: None
  *
- * Side effects:
- *      VM system is cleaned up.
- *
- *----------------------------------------------------------------------
- */
+ * Side effects: VM system is cleaned up.
+ *----------------------------------------------------------------------*/
 static void vmDestroy(systemArgs *sysargsPtr){
    CheckMode();
    vmDestroyReal();
 } /* vmDestroy */
-
 
 /*
  *----------------------------------------------------------------------
