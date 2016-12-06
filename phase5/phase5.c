@@ -64,25 +64,20 @@ int clockHand;              // frame pointed to in the clock algorithm
 int clockSem;               // semaphore for mutual exclusion of clockHand
 int frameSem;               // semaphore for mutual exclusion of frame table
 
-/*
- *----------------------------------------------------------------------
- *
- * start4 --
+
+ /*----------------------------------------------------------------------
+ * start4
  *
  * Initializes the VM system call handlers. 
  *
- * Results:
- *      MMU return status
+ * Results: MMU return status
  *
- * Side effects:
- *      The MMU is initialized.
- *
- *----------------------------------------------------------------------
- */
+ * Side effects: The MMU is initialized.
+ *----------------------------------------------------------------------*/
 int start4(char *arg){
-    int pid;
-    int result;
-    int status;
+    int pid;     // process ID
+    int result;  // value returned from functions
+    int status;  // value returned from wait
 
     /* to get user-process access to mailbox functions */
     systemCallVec[SYS_MBOXCREATE]      = mbox_create;
@@ -92,18 +87,18 @@ int start4(char *arg){
     systemCallVec[SYS_MBOXCONDSEND]    = mbox_condsend;
     systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
     
-
     /* user-process access to VM functions */
     systemCallVec[SYS_VMINIT]    = vmInit;
     systemCallVec[SYS_VMDESTROY] = vmDestroy;
 
+    /* fork Start5 */
     result = Spawn("Start5", start5, NULL, 8*USLOSS_MIN_STACK, 2, &pid);
     if (result != 0) {
         USLOSS_Console("start4(): Error spawning start5\n");
         Terminate(1);
     }
 
-    //Wait for start5 to terminate
+    /* Wait for start5 to terminate */
     result = Wait(&pid, &status);
     if (result != 0) {
         USLOSS_Console("start4(): Error waiting for start5\n");
@@ -111,8 +106,7 @@ int start4(char *arg){
     }
 
     Terminate(0);
-    return 0; // not reached
-
+    return 0;
 } /* start4 */
 
 /*
