@@ -378,60 +378,51 @@ void vmDestroyReal(void){
    vmInitialized = 0;  //TODO: might be after MmuDone
 } /* vmDestroyReal */
 
-/*
- *----------------------------------------------------------------------
- *
+ /*----------------------------------------------------------------------
  * FaultHandler
  *
  * Handles an MMU interrupt. Simply stores information about the
  * fault in a queue, wakes a waiting pager, and blocks until
  * the fault has been handled.
  * 
- * Parameters: int  type = USLOSS_MMU_INT , void *arg  = Offset within VM region
- * Results:
- * None.
+ * Parameters: type: int - USLOSS_MMU_INT
+ *             arg:  void* - Offset within VM region
  *
- * Side effects:
- * The current process is blocked until the fault is handled.
+ * Results: None
  *
+ * Side effects: procTable and faultMsg changed. 
+ *               The current process is blocked until the fault is handled.
  *----------------------------------------------------------------------
  */
 static void FaultHandler(int  type, void *arg){
-   int cause;
+    int cause; // reason for the fault
 
-    int offset = (int) (long) arg;
-    void * vmPlusOffset = vmRegion + offset;
+    int offset = (int) (long) arg;          // offset within vm region of fault
+    void *vmPlusOffset = vmRegion + offset; // address of fault
 
-    /*USLOSS_Console("offset = %d\n", (int) (long) arg);
-    USLOSS_Console("page# = %d\n", page);
-    USLOSS_Console("vmRegion = %lp\n", vmRegion);*/ 
-    //USLOSS_Console("temp = %lp\n", temp);
-    
-   assert(type == USLOSS_MMU_INT);
-   cause = USLOSS_MmuGetCause();
-   assert(cause == USLOSS_MMU_FAULT);
+    assert(type == USLOSS_MMU_INT);
+    cause = USLOSS_MmuGetCause();
+    assert(cause == USLOSS_MMU_FAULT);
 
-   // update vmStats
-   sempReal(vmStatSem);
-   vmStats.faults++;
-   semvReal(vmStatSem);
+    sempReal(vmStatSem);
+    vmStats.faults++;
+    semvReal(vmStatSem);
 
-   int pid;
-   getPID_real(&pid);
+    int pid;             // pid of process that caused the fault
+    getPID_real(&pid);
 
-   procTable[pid % MAXPROC].pid = pid;
-   procTable[pid % MAXPROC].vm = 1;
+    procTable[pid % MAXPROC].pid = pid;
+    procTable[pid % MAXPROC].vm = 1;    // process is uses vm region
 
-   /*
-    * Fill in faults[pid % MAXPROC], send it to the pagers, and wait for the
-    * reply.
-    */
-   faults[pid % MAXPROC].pid = pid;
-   faults[pid % MAXPROC].addr = vmPlusOffset;
+    /* fill in fault message */
+    faults[pid % MAXPROC].pid = pid;
+    faults[pid % MAXPROC].addr = vmPlusOffset;
 
-   MboxSend(pagerMbox, &pid, sizeof(int));
+    /* send pid to pager to process fault message */
+    MboxSend(pagerMbox, &pid, sizeof(int));
 
-   MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
+    /* wait for pager to process fault message */
+    MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
 } /* FaultHandler */
 
 /*----------------------------------------------------------------------
@@ -441,7 +432,8 @@ static void FaultHandler(int  type, void *arg){
  *
  * Results: None
  *
- * Side effects: None
+ * Side effects: pageTable of pid, frameTable, clockHand, and MMU access
+ *               bits changed.
  *-----------------------------------------------------------------------*/
 static int Pager(char *buf) {
     int pid;
