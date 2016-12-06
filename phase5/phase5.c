@@ -458,8 +458,6 @@ static int Pager(char *buf){
         if (pid == -1 ) {
             break;
         }
-	//debugPageTable(pid);
-	//debugFrameTable(0);
         /* update frameTable to match MMU */
         int accessBit;
         for (int i = 0; i < vmStats.frames; i++) {
@@ -473,15 +471,12 @@ static int Pager(char *buf){
             frameTable[i].dirty = accessBit & DIRTY;
             //semvReal(frameSem);
         }
-
         int freeFrame = -1;
         int page = -1;
-
         /* Look for free frame */
         for (int i = 0; i < vmStats.frames; i++) {
             if (frameTable[i].state == UNUSED){
                 freeFrame = i; // save frame index, break out of loop
-		//USLOSS_Console("Pager: Frame %d is unused\n", i);
                 sempReal(vmStatSem);
                 vmStats.freeFrames--;
                 semvReal(vmStatSem);
@@ -492,52 +487,19 @@ static int Pager(char *buf){
         /* If there isn't one then use clock algorithm to
          * replace a page (perhaps write to disk) */
         if (freeFrame == -1) {
-            int found = 0;
             //sempReal(clockSem);
-            for (int i = 0; i < vmStats.frames; i++) {
+            for (int i = 0; i < vmStats.frames * 2; i++) {
                 if (frameTable[clockHand].ref == UNREFERENCED) {
-                    if (frameTable[clockHand].dirty == CLEAN) {
                         freeFrame = clockHand;
-                        frameTable[clockHand].page->frame = -1;
-                        found = 1;
-			//USLOSS_Console("pass 1 Found UNref & Clean frame, %d\n", clockHand);
-                clockHand++;
-                if (clockHand == vmStats.frames) {
-                    clockHand = 0;
-                }
-
+                	clockHand++;
+                	if (clockHand == vmStats.frames) {
+                	    clockHand = 0;
+                	}
                         break;
-                    }
                 } else {
                     frameTable[clockHand].ref = UNREFERENCED;
                     USLOSS_MmuSetAccess(clockHand, 
                             frameTable[clockHand].dirty);
-                }
-                clockHand++;
-                if (clockHand == vmStats.frames) {
-                    clockHand = 0;
-                }
-            }
-
-            /* No unreferenced and clean frames on first pass, this is second
-             * pass */
-            if (!found) {
-                found = 0;
-                for (int i = 0; i < vmStats.frames; i++) {
-                    if (frameTable[clockHand].ref == UNREFERENCED) {
-                        if (frameTable[clockHand].dirty == CLEAN) {
-                            freeFrame = clockHand;
-                            frameTable[clockHand].page->frame = -1;
-                            found = 1;
-			   // USLOSS_Console("pass 2 Found UNref & Clean frame, %d\n", clockHand);
-                clockHand++;
-                if (clockHand == vmStats.frames) {
-                    clockHand = 0;
-                }
-
-                            break;
-                        }
-                    }
                     clockHand++;
                     if (clockHand == vmStats.frames) {
                         clockHand = 0;
@@ -545,8 +507,7 @@ static int Pager(char *buf){
                 }
             }
 
-            if (!found) {
-                freeFrame = clockHand;
+            if (frameTable[freeFrame].dirty == DIRTY) {
                 page = frameTable[freeFrame].page->pageNum;
                 void * addr = vmRegion + (page * USLOSS_MmuPageSize());
                 char buffer[USLOSS_MmuPageSize()];
@@ -567,7 +528,6 @@ static int Pager(char *buf){
                         semvReal(vmStatSem);
                     }
                 }
-		//USLOSS_Console("Using clockhand, %d\n", clockHand);
                 /* save frame to buffer */
                 int result = USLOSS_MmuMap(0, page, freeFrame, 
                         USLOSS_MMU_PROT_RW);
@@ -590,10 +550,10 @@ static int Pager(char *buf){
                         diskTable[diskLocation].sector, USLOSS_MmuPageSize() / 
                         USLOSS_DISK_SECTOR_SIZE, buffer);
 
-                frameTable[clockHand].ref = UNREFERENCED;
-                frameTable[clockHand].dirty = CLEAN;
-                USLOSS_MmuSetAccess(clockHand, 
-                        frameTable[clockHand].dirty);
+                frameTable[freeFrame].ref = UNREFERENCED;
+                frameTable[freeFrame].dirty = CLEAN;
+                USLOSS_MmuSetAccess(freeFrame, 
+                        frameTable[freeFrame].dirty);
 
                 /* update disk table and page table state */
                 diskTable[diskLocation].state = USED;
@@ -605,11 +565,6 @@ static int Pager(char *buf){
                 sempReal(vmStatSem);
                 vmStats.pageOuts++;
                 semvReal(vmStatSem);
-
-                clockHand++;
-                if (clockHand == vmStats.frames) {
-                    clockHand = 0;
-                }
             }
         }
 
@@ -623,7 +578,10 @@ static int Pager(char *buf){
         procTable[pid].pageTable[page].pageNum = page;
         
         /* update frame table */
-        frameTable[freeFrame].state = USED; 
+	if( frameTable[freeFrame].state == USED )
+	    frameTable[freeFrame].page->frame = -1;
+	else
+	    frameTable[freeFrame].state = USED; 
         frameTable[freeFrame].page = &procTable[pid].pageTable[page];
         frameTable[freeFrame].pid = pid;
 
@@ -712,7 +670,7 @@ int getPID5() {
 void debugPageTable(int pid){
     USLOSS_Console("-Process %d Page Table-\n", pid);
     for(int i=0; i<vmStats.pages; i++){
-	USLOSS_Console("Page %d -> Frame %d \n",i, procTable[pid].pageTable[i].frame);
+	USLOSS_Console("Page %d -> Frame %d - DiskIndex %d \n",i, procTable[pid].pageTable[i].frame, procTable[pid].pageTable[i].diskTableIndex);
     }
 }
 
@@ -720,7 +678,7 @@ void debugFrameTable(int pid){
     USLOSS_Console("-Current Frame Table-\n", pid);
     for(int i=0; i<vmStats.frames; i++){
 	if(frameTable[i].page != NULL)
-        USLOSS_Console("Frame %d -> Process %d: Page %d: Ref %d: Dirty: %d\n"
+        USLOSS_Console("Frame %d -> Process %d - Page %d - Ref %d - Dirty %d\n"
 		,i, frameTable[i].pid,frameTable[i].page->pageNum, frameTable[i].ref, frameTable[i].dirty);
 	else
 	USLOSS_Console("Frame unused\n");
