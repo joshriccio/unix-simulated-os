@@ -18,7 +18,6 @@
 #include <libuser.h>
 #include <vm.h>
 #include <string.h>
-#include <providedPrototypes.h>
 
 extern void mbox_create(systemArgs *args_ptr);
 extern void mbox_release(systemArgs *args_ptr);
@@ -32,6 +31,10 @@ extern int  semvReal(int semaphore);
 extern int  getPID_real(int *pid);
 extern int  diskSizeReal(int unit, int *sectorSize, int *sectorsInTrack, 
                         int *tracksInDisk);
+extern int  diskReadReal (int unit, int track, int first_sector,
+                          int numSectors, void *buffer);
+extern int  diskWriteReal(int unit, int track, int first_sector,
+                          int numSectors, void *buffer);
 extern int  start5(char *arg);
 
 /*---------------------- Prototypes ----------------------------------------*/
