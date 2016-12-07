@@ -71,6 +71,7 @@ void p1_switch(int old, int new) {
     /* only perform mappings and unmappings if vm is initialized */
     if (vmInitialized) {
 
+        USLOSS_Console("p1_switch() called: old = %d, new = %d\n", old, new);
         /* if old is a vm process */
         if (procTable[old % MAXPROC].vm) {
             for(int page = 0; page < vmStats.pages; page++){

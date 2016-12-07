@@ -45,7 +45,6 @@ static int Pager(char *buf);
 void *vmInitReal(int mappings, int pages, int frames, int pagers);
 static void vmDestroy(systemArgs *sysargsPtr);
 void vmDestroyReal(void);
-int getPID5();
 void debugPageTable(int pid);
 void debugFrameTable(int pid);
 
@@ -411,6 +410,8 @@ static int Pager(char *buf) {
             frameTable[i].dirty = accessBit & DIRTY;
         }
 
+        debugFrameTable(0);
+
         /* Look for free frame to store the page */
         int freeFrame = -1;
         int page = -1;
@@ -551,6 +552,7 @@ static int Pager(char *buf) {
         /* Load page into frame from disk */
         if (procTable[pid % MAXPROC].pageTable[page].diskTableIndex != -1) {
             int diskIndex = procTable[pid].pageTable[page].diskTableIndex;
+                USLOSS_Console("diskIndex: %d - pid: %d\n", diskIndex, pid);
 
             /* read page from disk */
             char buffer[USLOSS_MmuPageSize()]; // buffer to read page to
@@ -625,17 +627,14 @@ static int Pager(char *buf) {
             semvReal(vmStatSem);
         }
 
+        USLOSS_Console("freeFrame: %d - pid: %d\n", freeFrame, pid);
+        USLOSS_Console("clockHand: %d - pid: %d\n", clockHand, pid);
+
         /* Unblock waiting (faulting) process */
         MboxSend(faults[pid % MAXPROC].replyMbox, NULL, 0);
     }
     return 0;
 } /* Pager */
-
-int getPID5() {
-    int pid;
-    getPID_real(&pid);
-    return pid;
-}
 
 void debugPageTable(int pid){
     USLOSS_Console("-Process %d Page Table-\n", pid);
