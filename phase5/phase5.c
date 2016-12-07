@@ -620,7 +620,7 @@ static int Pager(char *buf) {
             sempReal(vmStatSem);
             vmStats.new++;
             semvReal(vmStatSem);
-         }
+        }
 
         /* Unblock waiting (faulting) process */
         MboxSend(faults[pid % MAXPROC].replyMbox, NULL, 0);
