@@ -1,4 +1,4 @@
-# Unix_Simulated_Operating_System
+# Unix Simulated OS
 Unix Operating System kernel that runs on simulated hardware (USLOSS).
 <br /><br />
 How-To build:
