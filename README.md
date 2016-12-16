@@ -50,7 +50,7 @@ int  DiskSize(int unit, int *sector, int *track, int *disk);<br />
 int  TermRead(char *buff, int bsize, int unit_id, int *nread);<br />
 int  TermWrite(char *buff, int bsize, int unit_id, int *nwrite);<br />
 
-Phase5 contains functions and drivers to handle virtual memory
+Phase5 contains functions and drivers to handle virtual memory<br />
 static void FaultHandler(int  type, void *arg);<br />
 static int Pager(char *buf);<br />
 void *vmInitReal(int mappings, int pages, int frames, int pagers);<br />
