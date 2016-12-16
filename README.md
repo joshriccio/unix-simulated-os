@@ -1,4 +1,4 @@
-# CSC452_USLOSS
+# Unix_Simulated_Operating_System
 Unix Operating System kernel that runs on simulated hardware (USLOSS).
 <br /><br />
 How-To build:
